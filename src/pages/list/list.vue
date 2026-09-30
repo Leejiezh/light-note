@@ -53,7 +53,7 @@
       aria-label="新建笔记"
       @tap="goCreate"
     >
-      <text class="fab-icon">+</text>
+      <Icon name="plus" :size="52" color="#FFFFFF" />
     </view>
   </view>
 </template>
@@ -63,6 +63,7 @@ import { ref, computed } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import NoteCard from '@/components/NoteCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
+import Icon from '@/components/Icon.vue';
 import { getNotes } from '@/utils/request/index.js';
 
 const notes = ref([]);
@@ -237,12 +238,5 @@ onPullDownRefresh(async () => {
   &:active {
     transform: scale(0.92);
   }
-}
-
-.fab-icon {
-  color: #fff;
-  font-size: 56rpx;
-  line-height: 1;
-  margin-top: -4rpx;
 }
 </style>

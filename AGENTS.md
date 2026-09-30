@@ -20,6 +20,8 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 
 微信开发者工具**必须打开 `dist/dev/mp-weixin`**，不是项目根目录——选错会报「找不到 app.json」。这是本项目最高频的坑。
 
+**Vue 版本必须钉死 3.4.21，不要改回 `^3.4.21`。** `vue-router` 从 4.6.0 起把 peer 要求提到 `vue: ^3.5.0`，而 `@dcloudio/uni-h5` 声明的是 `vue-router: ^4.3.0`。一旦顶层 vue 用 `^`（npm 可能装到 3.5.x）或 `vue-router` 被解析到 4.6+，npm 就会在 `@dcloudio/uni-h5/node_modules/` 下**再装一整套 vue 3.5.x**，与 uni 按 3.4.21 打包的小程序运行链冲突，启动直接崩（详见 `RUNNING.md` §十二 首条）。`package.json` 的 `overrides.vue-router = "4.5.1"` 是这条不变式的保障，**不要删**；改动依赖后按 `RUNNING.md` §十二 的方法验证依赖树是否仍收敛。
+
 ## 关键约束（改代码前必读）
 
 ### 1. H5 通过 ≠ 小程序通过
@@ -47,7 +49,9 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 
 ### 4. 待办必须用原生组件
 
-`rich-text` 会屏蔽子元素事件，勾选待办**不能**渲染在 `rich-text` 里，走 `components/TodoList.vue`。同时 `rich-text` 的样式必须写在**非 scoped** 的 `<style>` 块里。
+`rich-text` 会屏蔽子元素事件，勾选待办**不能**渲染在 `rich-text` 里，走 `components/TodoList.vue`。同时：
+- `rich-text` 的样式必须写在**非 scoped** 的 `<style>` 块里
+- 小程序端不支持标签选择器（p/h1 等不是内置组件，够不到 rich-text 内部节点），解析器（`block.js` / `inline.js`）输出的标签**必须带 `md-` class 前缀**，详情页样式按 `.md-*` 写。新增语法标签时三处同步：解析器输出 class → 详情页 `.md-*` 样式 → 单测断言
 
 ### 5. 样式统一走令牌
 
@@ -59,18 +63,26 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 
 ### 7. 改 Markdown 解析器必须跑测试
 
-`src/utils/markdown/` 是纯 JS、可跨端复用，配套 `tests/parser.test.mjs`（89 个用例）。**任何改动都要 `npm test` 全绿**。分段解析的 `checks` 契约（`segment.js`）被列表页和详情页共用，改动前先看清调用方。
+`src/utils/markdown/` 是纯 JS、可跨端复用，配套 `tests/parser.test.mjs`（89 个用例）；`src/utils/store/profile.js`（我的页资料存储）配套 `tests/profile.test.mjs`（42 个用例）。**任何改动都要 `npm test` 全绿**（两条套件串行跑）。分段解析的 `checks` 契约（`segment.js`）被列表页和详情页共用，改动前先看清调用方。
+
+### 8. 图标只用两条通道，不要混入 emoji / 文字符号
+
+- 页面内图标一律用 `components/Icon.vue`（`<Icon name="search" :size="34" />`），码点在 `Icon.vue` 的 `ICONS` 与 `styles/iconfont.scss` 注释里，两边必须同步；**不要再写 🔍 / ✕ / › 这类字符**（EmojiState 的空态 emoji 除外，那是刻意的风格）
+- 给 Icon 上色用 `color` prop（建议传 CSS 变量）或父级文字色继承；**不要用页面 class 给 Icon 改颜色**——小程序自定义组件样式隔离，类选择器穿不进去（H5 正常、小程序失效，别只看 H5）
+- tabBar 图标**必须是 PNG**（`static/tabbar/`，81×81），字体图标 / SVG 都不行；新增图标先查 `RUNNING.md` §八⑧ 的流程
 
 ## 目录导航
 
 | 路径 | 说明 |
 |---|---|
 | `src/pages/` | 六个页面：list / detail / editor / tags / search / mine |
-| `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue` |
+| `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue`、`Icon.vue`（★ 图标） |
 | `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.js` |
 | `src/utils/request/` | 请求封装 + `mock.js`（默认开启 Mock） |
-| `src/styles/` | `tokens.scss`（SCSS 令牌）、`global.scss`（CSS 变量） |
-| `tests/parser.test.mjs` | 解析器 + 行内格式 + 图片插入单测（89 个用例） |
+| `src/utils/store/` | 本地存储层：`profile.js`（我的页个人资料，配套 42 个单测） |
+| `src/styles/` | `tokens.scss`（SCSS 令牌）、`global.scss`（CSS 变量）、`iconfont.scss`（图标字体） |
+| `src/static/` | `fonts/lnicon.ttf`（图标字体子集）、`tabbar/`（tabBar PNG 图标） |
+| `tests/parser.test.mjs` | 解析器 + 行内格式 + 图片插入单测（89 个用例；`tests/profile.test.mjs` 另有 42 个） |
 | `RUNNING.md` | 运行文档：环境、两种运行方式、技术点、常见问题 |
 
 ## 交付前自检

@@ -36,7 +36,7 @@ export function renderMd(src, opts = {}) {
   function flushList() {
     if (!listBuf.length) return;
     const tag = listType === 'ol' ? 'ol' : 'ul';
-    out.push(`<${tag}>${listBuf.map((t) => `<li>${t}</li>`).join('')}</${tag}>`);
+    out.push(`<${tag} class="md-${tag}">${listBuf.map((t) => `<li class="md-li">${t}</li>`).join('')}</${tag}>`);
     listBuf = [];
     listType = null;
   }
@@ -44,8 +44,8 @@ export function renderMd(src, opts = {}) {
   /** 冲刷代码块 */
   function flushCode() {
     if (!codeBuf.length && !codeLang) return;
-    const cls = codeLang ? ` class="language-${codeLang}"` : '';
-    out.push(`<pre><code${cls}>${codeBuf.join('\n')}</code></pre>`);
+    const cls = codeLang ? ` class="md-code language-${codeLang}"` : ' class="md-code"';
+    out.push(`<pre class="md-pre"><code${cls}>${codeBuf.join('\n')}</code></pre>`);
     codeBuf = [];
     codeLang = '';
   }
@@ -98,7 +98,7 @@ export function renderMd(src, opts = {}) {
     if (h) {
       flushList();
       const tag = BLOCK_TAG_MAP[h[1].length] || 'h6';
-      out.push(`<${tag}>${parseInline(h[2])}</${tag}>`);
+      out.push(`<${tag} class="md-${tag}">${parseInline(h[2])}</${tag}>`);
       continue;
     }
 
@@ -114,7 +114,7 @@ export function renderMd(src, opts = {}) {
     const q = line.match(QUOTE_PATTERN);
     if (q) {
       flushList();
-      out.push(`<blockquote>${parseInline(q[1])}</blockquote>`);
+      out.push(`<blockquote class="md-blockquote">${parseInline(q[1])}</blockquote>`);
       continue;
     }
 
@@ -138,7 +138,7 @@ export function renderMd(src, opts = {}) {
 
     // ---------- 普通段落 ----------
     flushList();
-    out.push(`<p>${parseInline(line)}</p>`);
+    out.push(`<p class="md-p">${parseInline(line)}</p>`);
   }
 
   // 收尾冲刷

@@ -7,7 +7,8 @@
     @longpress="$emit('longpress', note)"
   >
     <view class="card-head">
-      <text v-if="note.pinned" class="pin" aria-label="已置顶">📌</text>
+      <!-- 置顶是纯视觉提示（Icon 组件自带 aria-hidden），卡片语义由根节点 aria-label 提供 -->
+      <Icon v-if="note.pinned" name="pin" :size="28" color="var(--brand-500)" />
       <text class="title ellipsis">{{ note.title || '无标题' }}</text>
     </view>
 
@@ -22,6 +23,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import Icon from '@/components/Icon.vue';
 
 const props = defineProps({
   note: { type: Object, required: true }
@@ -77,11 +79,6 @@ const relTime = computed(() => {
   align-items: center;
   gap: $space-1;
   margin-bottom: $space-2;
-}
-
-.pin {
-  font-size: 28rpx;
-  flex: none;
 }
 
 .title {

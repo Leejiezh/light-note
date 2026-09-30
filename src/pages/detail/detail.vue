@@ -291,32 +291,34 @@ onUnload(() => {
     display: block;
   }
 
-  h1 { font-size: 48rpx; font-weight: 700; margin: 40rpx 0 16rpx; line-height: 1.3; }
-  h2 { font-size: 40rpx; font-weight: 700; margin: 36rpx 0 16rpx; line-height: 1.3; }
-  h3 { font-size: 36rpx; font-weight: 600; margin: 32rpx 0 12rpx; line-height: 1.35; }
-  h4, h5, h6 { font-size: 32rpx; font-weight: 600; margin: 28rpx 0 12rpx; }
+  /* ⚠️ 小程序端不支持标签选择器（p/h1 等不是内置组件，够不到 rich-text
+     内部节点），一律用解析器输出的 md- class 选择器。 */
+  .md-h1 { font-size: 48rpx; font-weight: 700; margin: 40rpx 0 16rpx; line-height: 1.3; }
+  .md-h2 { font-size: 40rpx; font-weight: 700; margin: 36rpx 0 16rpx; line-height: 1.3; }
+  .md-h3 { font-size: 36rpx; font-weight: 600; margin: 32rpx 0 12rpx; line-height: 1.35; }
+  .md-h4, .md-h5, .md-h6 { font-size: 32rpx; font-weight: 600; margin: 28rpx 0 12rpx; }
 
-  p {
+  .md-p {
     margin: 0 0 24rpx;
     line-height: 1.75;
   }
 
-  strong { font-weight: 700; }
-  em { font-style: italic; }
-  del { text-decoration: line-through; opacity: 0.6; }
+  .md-strong { font-weight: 700; }
+  .md-em { font-style: italic; }
+  .md-del { text-decoration: line-through; opacity: 0.6; }
 
-  a {
+  .md-a {
     color: #6D28D9;
     text-decoration: underline;
   }
 
-  ul, ol {
+  .md-ul, .md-ol {
     margin: 0 0 24rpx;
     padding-left: 40rpx;
   }
-  li { margin-bottom: 8rpx; line-height: 1.7; }
+  .md-li { margin-bottom: 8rpx; line-height: 1.7; }
 
-  blockquote {
+  .md-blockquote {
     margin: 0 0 24rpx;
     padding: 16rpx 24rpx;
     border-left: 6rpx solid #7C3AED;
@@ -326,7 +328,7 @@ onUnload(() => {
   }
 
   /* rich-text 支持 pre / code，无需降级模拟 */
-  pre {
+  .md-pre {
     margin: 0 0 24rpx;
     padding: 24rpx;
     background: #232329;
@@ -339,22 +341,23 @@ onUnload(() => {
     word-break: break-all;
   }
 
-  code {
+  /* 代码块内的 code 只继承字体；行内 code 用专属 class（见下），
+     避免在 rich-text 内部写后代选择器（小程序端不可靠） */
+  .md-code {
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 0.9em;
   }
 
-  /* 行内代码（非 pre 内） */
-  p code, li code, blockquote code {
+  .md-code-inline {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
     background: #F4F4F7;
     color: #6D28D9;
     padding: 2rpx 10rpx;
     border-radius: 8rpx;
   }
 
-  /* ⚠️ 小程序端不支持标签选择器，分割线必须用 class 选择器 */
-  .md-hr,
-  hr.md-hr {
+  .md-hr {
     display: block;
     margin: 40rpx 0;
     border: 0;
@@ -362,7 +365,7 @@ onUnload(() => {
     height: 0;
   }
 
-  img {
+  .md-img {
     max-width: 100%;
     border-radius: 16rpx;
     margin: 16rpx 0;

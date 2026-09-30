@@ -45,10 +45,30 @@
     "backgroundColor": "#FFFFFF",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/list/list", "text": "笔记" },
-      { "pagePath": "pages/tags/tags", "text": "标签" },
-      { "pagePath": "pages/search/search", "text": "搜索" },
-      { "pagePath": "pages/mine/mine", "text": "我的" }
+      {
+        "pagePath": "pages/list/list",
+        "text": "笔记",
+        "iconPath": "static/tabbar/note.png",
+        "selectedIconPath": "static/tabbar/note-active.png"
+      },
+      {
+        "pagePath": "pages/tags/tags",
+        "text": "标签",
+        "iconPath": "static/tabbar/tag.png",
+        "selectedIconPath": "static/tabbar/tag-active.png"
+      },
+      {
+        "pagePath": "pages/search/search",
+        "text": "搜索",
+        "iconPath": "static/tabbar/search.png",
+        "selectedIconPath": "static/tabbar/search-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "static/tabbar/user.png",
+        "selectedIconPath": "static/tabbar/user-active.png"
+      }
     ]
   },
   "globalStyle": {

@@ -24,4 +24,6 @@ function applyTheme(theme) {
 
 <style lang="scss">
 @import '@/styles/global.scss';
+/* 图标字体（lnicon）：须全局引入一次，@font-face 才会在两端生效 */
+@import '@/styles/iconfont.scss';
 </style>

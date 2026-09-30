@@ -1,0 +1,78 @@
+// ============================================================
+// 轻记 · 图标字体（lnicon）
+//
+// 来源：Remixicon v4.5.0（Apache License 2.0，可商用）
+//   https://github.com/Remix-Design/RemixIcon
+// 本项目用 fontTools 做了**子集化**，只保留用到的 17 个图标，
+// 体积 2.4KB（原始全量字体 563KB）。
+//
+// ⚠️ 为什么内嵌 base64 而不是引用 .ttf 文件：
+//   小程序端 @font-face 的 src 只认 https:// 或 base64，
+//   不接受本地相对路径（wxfile/相对路径会静默失败）。
+//   base64 同时满足小程序与 H5，且离线可用、无网络请求。
+//   字体本体仍保留在 src/static/fonts/lnicon.ttf 以便日后重新生成。
+//
+// 图标码点表（改动务必同步 src/components/Icon.vue 的 ICONS 映射）：
+//   U+EA13  新建
+//   U+EA6E  右箭头
+//   U+EB7B  对勾
+//   U+EB99  关闭
+//   U+EC2A  回收站
+//   U+EFE0  编辑
+//   U+EEF6  邮箱
+//   U+EE4B  图片
+//   U+EE59  关于
+//   U+EF75  深色外观
+//   U+EF14  位置
+//   U+F023  标签
+//   U+F039  置顶
+//   U+F0D1  搜索
+//   U+F19B  笔记
+//   U+F1BF  浅色外观
+//   U+F264  我的
+
+@font-face {
+  font-family: 'lnicon';
+  src: url('data:font/ttf;charset=utf-8;base64,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') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+/* 图标基类
+ * - 用 text 元素承载（小程序里 rich-text 外都用 <text>）
+ * - line-height:1 + vertical-align 让图标和相邻文字垂直居中
+ * - 尺寸/颜色默认继承，具体由调用方或 Icon.vue 覆盖
+ */
+.ln-icon {
+  font-family: 'lnicon' !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: -0.06em;   /* 视觉基线微调，比 baseline 更居中 */
+  speak: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 各图标码点 */
+.ln-icon-add::before { content: '\ea13'; }
+.ln-icon-arrow-right::before { content: '\ea6e'; }
+.ln-icon-check::before { content: '\eb7b'; }
+.ln-icon-close::before { content: '\eb99'; }
+.ln-icon-delete-bin::before { content: '\ec2a'; }
+.ln-icon-pencil::before { content: '\efe0'; }
+.ln-icon-mail::before { content: '\eef6'; }
+.ln-icon-image::before { content: '\ee4b'; }
+.ln-icon-information::before { content: '\ee59'; }
+.ln-icon-moon::before { content: '\ef75'; }
+.ln-icon-map-pin::before { content: '\ef14'; }
+.ln-icon-price-tag::before { content: '\f023'; }
+.ln-icon-pushpin::before { content: '\f039'; }
+.ln-icon-search::before { content: '\f0d1'; }
+.ln-icon-sticky-note::before { content: '\f19b'; }
+.ln-icon-sun::before { content: '\f1bf'; }
+.ln-icon-user::before { content: '\f264'; }

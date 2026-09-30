@@ -15,16 +15,16 @@ function eq(actual, expected, name) {
 function ok(cond, name) { eq(!!cond, true, name); }
 
 // ---------- 行内解析 ----------
-eq(parseInline('**粗**'), '<strong>粗</strong>', '加粗');
-eq(parseInline('*斜*'), '<em>斜</em>', '斜体');
-eq(parseInline('~~删~~'), '<del>删</del>', '删除线');
-eq(parseInline('`code`'), '<code>code</code>', '行内代码');
-eq(parseInline('**粗**和*斜*'), '<strong>粗</strong>和<em>斜</em>', '加粗+斜体混合');
+eq(parseInline('**粗**'), '<strong class="md-strong">粗</strong>', '加粗');
+eq(parseInline('*斜*'), '<em class="md-em">斜</em>', '斜体');
+eq(parseInline('~~删~~'), '<del class="md-del">删</del>', '删除线');
+eq(parseInline('`code`'), '<code class="md-code-inline">code</code>', '行内代码');
+eq(parseInline('**粗**和*斜*'), '<strong class="md-strong">粗</strong>和<em class="md-em">斜</em>', '加粗+斜体混合');
 eq(parseInline('<script>'), '&lt;script&gt;', 'XSS 转义');
-eq(parseInline('[文字](https://a.com)'), '<a href="https://a.com">文字</a>', '链接');
+eq(parseInline('[文字](https://a.com)'), '<a class="md-a" href="https://a.com">文字</a>', '链接');
 eq(parseInline('[x](javascript:alert(1))'), 'x', 'javascript 协议拦截');
-eq(parseInline('![图](https://a.com/i.png)'), '<img src="https://a.com/i.png" alt="图">', '图片');
-eq(parseInline('[文档](https://a.com/x(y))'), '<a href="https://a.com/x(y)">文档</a>', 'URL 含成对括号');
+eq(parseInline('![图](https://a.com/i.png)'), '<img class="md-img" src="https://a.com/i.png" alt="图">', '图片');
+eq(parseInline('[文档](https://a.com/x(y))'), '<a class="md-a" href="https://a.com/x(y)">文档</a>', 'URL 含成对括号');
 
 // ---------- URL 安全 ----------
 ok(isSafeUrl('https://a.com'), 'https 允许');
@@ -39,12 +39,12 @@ ok(isSafeUrl('blob:http://localhost/a.jpg', { media: true }), '图片放行 blob
 ok(!isSafeUrl('data:image/png;base64,AAAA', { media: true }), 'data: 即使是图片也不放行（所以不用 base64 存图）');
 
 // ---------- 块级解析 ----------
-eq(renderMd('## 标题'), '<h2>标题</h2>', 'H2');
-eq(renderMd('- a\n- b'), '<ul><li>a</li><li>b</li></ul>', '无序列表');
-eq(renderMd('1. a\n2. b'), '<ol><li>a</li><li>b</li></ol>', '有序列表');
-eq(renderMd('> 引用'), '<blockquote>引用</blockquote>', '引用');
-eq(renderMd('普通文字'), '<p>普通文字</p>', '段落');
-ok(renderMd('```js\nvar a=1;\n```').includes('<pre><code'), '代码块');
+eq(renderMd('## 标题'), '<h2 class="md-h2">标题</h2>', 'H2');
+eq(renderMd('- a\n- b'), '<ul class="md-ul"><li class="md-li">a</li><li class="md-li">b</li></ul>', '无序列表');
+eq(renderMd('1. a\n2. b'), '<ol class="md-ol"><li class="md-li">a</li><li class="md-li">b</li></ol>', '有序列表');
+eq(renderMd('> 引用'), '<blockquote class="md-blockquote">引用</blockquote>', '引用');
+eq(renderMd('普通文字'), '<p class="md-p">普通文字</p>', '段落');
+ok(renderMd('```js\nvar a=1;\n```').includes('<pre class="md-pre"><code class="md-code'), '代码块');
 eq(renderMd('---'), '<hr class="md-hr">', '分割线（小程序端需 class 选择器）');
 eq(renderMd('- [ ] 待办'), '<p class="md-todo">☐ 待办</p>', '待办（非分段模式）');
 eq(renderMd('- [ ] 待办', { skipTodo: true }), '', '待办（skipTodo 模式）');
@@ -119,10 +119,10 @@ eq(wrapRange('', 0, 0, '**'), null, '空正文 → null');
 
 // ★ 关键不变式：工具栏写入的标记，解析器必须认得
 //   （否则工具栏和渲染会漂移 —— 正文里出现渲染不掉的裸标记）
-eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.b).text), '<strong>abc</strong>', 'INLINE_FORMATS.b 与解析器一致');
-eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.i).text), '<em>abc</em>', 'INLINE_FORMATS.i 与解析器一致');
-eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.del).text), '<del>abc</del>', 'INLINE_FORMATS.del 与解析器一致');
-eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.code).text), '<code>abc</code>', 'INLINE_FORMATS.code 与解析器一致');
+eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.b).text), '<strong class="md-strong">abc</strong>', 'INLINE_FORMATS.b 与解析器一致');
+eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.i).text), '<em class="md-em">abc</em>', 'INLINE_FORMATS.i 与解析器一致');
+eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.del).text), '<del class="md-del">abc</del>', 'INLINE_FORMATS.del 与解析器一致');
+eq(parseInline(wrapRange('abc', 0, 3, INLINE_FORMATS.code).text), '<code class="md-code-inline">abc</code>', 'INLINE_FORMATS.code 与解析器一致');
 
 // ---------- 图片：相册选图 → 插入 → 渲染 ----------
 eq(imageMarkdown('wxfile://usr/a.jpg'), '![图片](wxfile://usr/a.jpg)', '生成图片标记（默认描述）');
@@ -141,7 +141,7 @@ eq(insertImageBlock('abc', 0, ''), null, '空地址 → null');
 
 // ★ 不变式：工具栏插进去的图片标记，解析器必须认得（否则正文里出现图片源码）
 const imgMd = imageMarkdown('wxfile://usr/x.jpg', '照片');
-eq(parseInline(imgMd), '<img src="wxfile://usr/x.jpg" alt="照片">', '★ 相册图片路径能被解析成 <img>');
+eq(parseInline(imgMd), '<img class="md-img" src="wxfile://usr/x.jpg" alt="照片">', '★ 相册图片路径能被解析成 <img>');
 eq(parseInline('![a](javascript:alert(1))'), 'a', '图片的 javascript: 协议仍然拦截');
 
 // 分段：独占一行的图片切成 image 段（详情页交给原生 <image>）

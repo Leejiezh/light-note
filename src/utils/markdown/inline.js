@@ -59,7 +59,7 @@ export function parseInline(text) {
   // ② 摘出行内代码（stash），避免其内容被后续规则处理
   const stash = [];
   s = s.replace(/`([^`\n]+)`/g, (m, code) => {
-    stash.push(`<code>${code}</code>`);
+    stash.push(`<code class="md-code-inline">${code}</code>`);
     return `\u0000${stash.length - 1}\u0000`;
   });
 
@@ -67,23 +67,23 @@ export function parseInline(text) {
   //    ★ 图片用 media 白名单：放行 wxfile: / blob:（相册选的本机文件）
   s = s.replace(
     new RegExp(`!\\[([^\\]]*)\\]\\(${URL_PAT}\\)`, 'g'),
-    (m, alt, url) => (isSafeUrl(url, { media: true }) ? `<img src="${url}" alt="${alt}">` : alt)
+    (m, alt, url) => (isSafeUrl(url, { media: true }) ? `<img class="md-img" src="${url}" alt="${alt}">` : alt)
   );
 
   // ④ 链接 [text](url)
   s = s.replace(
     new RegExp(`\\[([^\\]]*)\\]\\(${URL_PAT}\\)`, 'g'),
-    (m, label, url) => (isSafeUrl(url) ? `<a href="${url}">${label}</a>` : label)
+    (m, label, url) => (isSafeUrl(url) ? `<a class="md-a" href="${url}">${label}</a>` : label)
   );
 
   // ⑤ 加粗（必须早于斜体）
-  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong class="md-strong">$1</strong>');
 
   // ⑥ 斜体（用前后非 * 断言，避免误吃加粗的星号）
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em class="md-em">$2</em>');
 
   // ⑦ 删除线
-  s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+  s = s.replace(/~~([^~\n]+)~~/g, '<del class="md-del">$1</del>');
 
   // ⑧ 还原行内代码
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => stash[Number(i)] || '');

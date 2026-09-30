@@ -136,12 +136,12 @@ light-note/
 
 ## 六、跑测试
 
-Markdown 解析器有独立单元测试，**不依赖 uni-app 环境，直接 node 跑**：
+**两个纯 JS 模块都有独立单元测试，不依赖 uni-app 环境，直接 node 跑**：
 
 ```bash
-npm test
-# 或
-node tests/parser.test.mjs
+npm test                       # 全部：解析器 + 个人资料存储
+node tests/parser.test.mjs     # 只跑解析器
+node tests/profile.test.mjs    # 只跑个人资料存储
 ```
 
 预期输出：
@@ -149,6 +149,8 @@ node tests/parser.test.mjs
 ```
 通过 89 / 89
 全部通过 ✓
+
+profile 测试：42 通过，0 失败
 ```
 
 测试覆盖的关键用例：
@@ -162,6 +164,9 @@ node tests/parser.test.mjs
 | **checks 不变式** | 长度对齐、截断、重置 |
 | **分段跨段累加** ★ | 两段待办时，第二段正确取 `checks[2]`、`checks[3]` |
 | 摘要一致性 | 剔除全部标记、与渲染共用规则 |
+| **profile 清洗** ★ | 单行清洗（换行/制表/连续空格）、码点计数（emoji 不切半） |
+| **profile 校验** ★ | 昵称必填与长度、邮箱宽松格式、临界长度通过 |
+| **profile 读写闭环** ★ | 归一化兜底（脏数据回落默认值）、非法邮箱清空、写入读回一致 |
 
 > **改解析器后务必跑一遍测试。** 尤其是 `segment.js`，跨段累加写错会导致勾选整体错位，而这种 bug 在页面上很难肉眼发现。
 
@@ -314,6 +319,45 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 
 > 图片 Markdown 的生成与插入位置（`imageMarkdown` / `insertImageBlock`）同样抽在 `format.js` 里，有单测覆盖 —— 改这块记得跑 `npm test`。
 
+### ⑧ 图标体系：lnicon 字体 + tabBar PNG
+
+项目图标走**自建子集字体**（2026-09 引入），来源 Remixicon v4.5.0（Apache-2.0 可商用），用 fontTools 只保留用到的图标，字体仅 **3.2KB**。全部资产：
+
+| 文件 | 作用 |
+|---|---|
+| `src/static/fonts/lnicon.ttf` | 子集字体本体（重新生成时用） |
+| `src/styles/iconfont.scss` | `@font-face`（**base64 内嵌**）+ `.ln-icon-*` 工具类 + 码点表注释 |
+| `src/components/Icon.vue` | 页面内图标组件：`<Icon name="search" :size="34" color="var(--text-tertiary)" />` |
+| `src/static/tabbar/*.png` | tabBar 图标 8 张（81×81，从未选中灰 `#5A5A66` / 选中紫 `#7C3AED` 渲染） |
+
+几个容易踩的坑：
+
+1. **为什么 `@font-face` 用 base64**：小程序端 `@font-face` 的 `src` 只认 https 与 base64，本地相对路径静默失败；base64 两端通用且离线可用。
+2. **为什么 Icon.vue 直接渲染字形字符（`String.fromCodePoint`）而不用 `::before` + class**：小程序自定义组件默认样式隔离（compiled `Icon.json` 无 `styleIsolation` 字段 → isolated），`app.wxss` 里的 content 类进不到组件内部，图标会变方块；H5 没有隔离概念，只看 H5 发现不了。内联 `font-family` + 字符渲染不受隔离影响。
+3. **颜色传递靠 `color` prop 或父级继承**：页面 scoped 样式里的类选择器同样穿不进组件（隔离），不要给 Icon 挂 class 改颜色；CSS 变量以内联样式写入是可靠的。
+4. **tabBar 图标必须是 PNG**：`pages.json` 的 tabBar 不支持字体图标 / SVG / 网络图。本项目用同一套字形光栅化生成（扫描线填充 + 4× 超采样抗锯齿），保证 tabBar 与页面内图标设计语言一致。81×81 官方建议尺寸，每张 0.5~1.4KB。
+
+**如何新增图标**：① 从 **remixicon.css 查目标图标码点（不要凭记忆猜！0xEC4A 这类近似码点其实是另一个图标）** → ② fontTools 子集重新生成 `lnicon.ttf`（保留原 ttf 备用）→ ③ base64 更新 `iconfont.scss` 的 `@font-face` 与码点注释 → ④ `Icon.vue` 的 `ICONS` 映射加码点 → ⑤ 若用于 tabBar，用同一字形渲染 PNG 放 `static/tabbar/`。
+
+> 生成脚本已固化在 `gen-tmp/build-iconfont.py`：改脚本顶部的 ICONS 码点表，然后 `python gen-tmp/build-iconfont.py` 一次完成 ②③（含码点完整性自检）。配套 `gen-tmp/preview-glyphs.py` 可把字形渲染成 PNG 人工核对形状（Pillow 实现，无需 cairo）。子集来源字体放 `gen-tmp/remixicon-full.ttf`。
+
+### ⑨ 个人资料：存哪、为什么头像不能上传
+
+「我的」页的个人资料（昵称/签名/邮箱/所在地/头像底色）全部走**本地存储**，逻辑集中在 `src/utils/store/profile.js`：
+
+| 决策 | 理由 |
+|---|---|
+| 存储键 `profile`，`uni.setStorageSync` | 无后端阶段的最稳方案；接后端时只需把 read/write 换成 request，组件层不动 |
+| **头像只能选 6 个预设底色（渐变 + 昵称首字符），不支持上传图片** | 编辑器图片存的是本机路径（`wxfile://`），换设备/清缓存必失效；头像比笔记图片更显眼，用一个必然失效的地址反而更糟。预设底色任何设备都稳定，且保留个人辨识度 |
+| 读写都过 `normalizeProfile` | 脏数据（旧版本残留/手输异常）在存储层就清洗干净：空昵称回落「轻记用户」、非法邮箱清空、未知底色回落、超长截断 |
+| 清洗（`sanitizeLine`）与校验（`validateProfile`）分离 | 清洗是「存储层防御」（read 路径也要过），校验是「保存时反馈」（带字段错误信息给 UI 显示行内红字） |
+| 昵称 12 字 / 签名 40 字上限，按**码点**计数 | `charCount` 用 `Array.from` 切分，emoji 算 1 个字；`initialOf` 同理不能 `s[0]`（会切出半个代理对） |
+| 邮箱校验刻意宽松（`a@b.c` 结构即可） | 只做展示不做投递，严格 RFC 正则会误杀 `user+tag@sub.domain.co` |
+
+页面交互：卡片**原地展开编辑**（不跳页）——点「编辑资料」切到编辑态（草稿拷贝，取消即丢弃），色块选中态带同色外圈 + 白色对勾，字段聚焦用品牌色内环（mp 端 input 无 `:focus` 样式，靠 `@focus/@blur` 切类实现），字数计数到上限变警示色，校验失败显示行内红字 + 顶部 toast，不跳字段焦点。
+
+> 编辑态的 4 个 `input` 是**原生组件**（AGENTS.md 约束 1）：`placeholder-class="ph"` 的样式必须写在**非 scoped** 的 `<style>` 块里（同 rich-text 的处理）。保存成功后 `writeProfile` 返回归一化结果再赋回页面状态，保证界面显示与存储严格一致。
+
 ---
 
 ## 十、已验证项与已知问题
@@ -331,10 +375,11 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 | 编辑器工具栏 | 点击「待办」按钮 | ✅ 在光标处插入 `\n- [ ] 待办事项\n` |
 | 新建→保存→列表 | 完整流程 | ✅ 卡片 4 → 5，新笔记详情待办 1 项 |
 | 搜索 + 高亮 | 搜「配色」 | ✅ 命中 1 条，仅关键词带黄色高亮 |
-| 单元测试 | `npm test` | ✅ 89 / 89 |
+| 单元测试 | `npm test` | ✅ 解析器 89 / 89 + profile 42 / 42 |
 | 图片插入（纯函数） | 单测：`imageMarkdown` / `insertImageBlock` | ✅ 描述方括号剔除、行首行中行尾插入的换行与光标落点、空地址返回 `null` |
 | 图片分段渲染 | 单测：`parseToSegments` 含图片行 | ✅ 独占一行的图切成 `image` 段；行内图与危险协议仍留富文本；checks 索引不被图片打乱 |
 | 条件编译（图片逻辑） | 检查两端产物 | ✅ 小程序包只含 `chooseMedia` / `saveFile`，H5 包只含 `chooseImage`（无 `saveFile`） |
+| 个人资料（我的页改版） | 双端构建 + 产物检查 | ✅ `build:mp-weixin` / `build:h5` 均通过；mine 产物含编辑态全部节点；profile 存储层 42 用例全绿（清洗/校验/读写闭环/脏数据兜底） |
 
 验证截图：`docs/screenshots/`（列表页、详情页、搜索高亮修复后）。
 
@@ -359,6 +404,7 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 8. **相册选图**：真机上点「图片」→ 相册选一张，确认：① 只开相册（不弹「拍照 / 相册」选择）；② 相册权限被拒时有没有弹出「去设置」引导；③ 选完图后正文里出现的是 `![图片](wxfile://…)` 这种真实路径，而不是模板占位文字。
 9. **图片能不能真的显示出来（最关键）**：详情页用原生 `<image>` 渲染本机路径的图，**开发者工具显示正常不代表真机正常**（历史上 `wxfile://` 路径在真机渲染失败的报告很多）。重点看：① 详情页图片是否显示；② 宽度撑满、高度按比例（`mode="widthFix"`），没露出灰底；③ 点一下能否全屏预览。**若真机不显示**，第一顺位是接后端上传换网络地址（见 §十三 第 5 条），而不是继续调样式。
 10. **图片插入后的光标**：选完图回到页面，确认光标/后续输入落在图片下方那一行（插入位置来自选图前的光标，靠 `cursorPos` 记录）。
+11. **我的页 · 资料编辑的原生 input**：`input` 在小程序端是原生组件，需在开发者工具里点一遍：① 各字段聚焦时是否出现品牌色内环、失焦是否退出；② placeholder（`placeholder-class` 非 scoped 写法）颜色是否生效；③ 昵称输满 12 字后计数变警示色、保存时行内红字 + toast；④ 换底色后头像渐变与同色外圈是否正确；⑤ 保存 → 杀掉小程序重进，资料是否还在（存储持久化）；⑥ 键盘弹起时保存/取消按钮是否被顶出可视区（页面本身可滚动，预期无碍）。
 
 ---
 
@@ -378,6 +424,7 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
+| 启动即报 `Cannot read properties of undefined (reading 'setPageTypeById')`（WAServiceMainContext） | 装了**两份 Vue**：`vue-router` 4.6+ 的 peer 要求 `vue: ^3.5.0`，npm 为满足它在 `node_modules/@dcloudio/uni-h5/node_modules/` 下又装了一套 vue 3.5.x；而小程序运行链是按 3.4.21 打包的，运行时不匹配 | 见下方「依赖版本不变式」——本项目已用 `package.json` 的 `overrides` 锁死，**不要提升 vue / vue-router 版本** |
 | 微信开发者工具报「找不到 app.json」 | 项目目录选错了 | 选 `dist/dev/mp-weixin`，不是项目根目录 |
 | 样式全部失效 | `vite.config.js` 的 scss 注入路径不对 | 确认 `additionalData` 指向 `@/styles/tokens.scss` |
 | 待办项点不动 | 待办被渲染进了 `rich-text` | 检查 `parseToSegments` 是否被正确调用 |
@@ -396,6 +443,44 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 | 点「图片」什么都没发生 | 用户点了取消，或相册权限被拒 | 取消静默处理（正常操作）；权限被拒会弹「去设置」引导。真机首次被拒后系统不再弹授权框 |
 | 详情页图片显示不出来 | 笔记里存的是**本机路径**：换设备 / 清缓存后失效；或环境对 `wxfile://` 渲染不稳定 | 图片段用原生 `<image>`（`parseToSegments` 的 `image` 段）而非 rich-text，见 §八 ⑦；彻底解决要接后端上传 |
 | 图片把整行排版挤乱了 | 图片没独占一行，被当成行内内容 | 插入用 `insertImageBlock`（自动补前后换行）；`segment.js` 只把「整行就是一张图」切成图片段 |
+
+### 依赖版本不变式（★ 动依赖前必读）
+
+**结论：`vue` 必须钉死 `3.4.21`，`vue-router` 必须钉死 `4.5.1`。** 两者都由 `package.json` 的 `overrides` 强制：
+
+```json
+"dependencies": { "vue": "3.4.21" },          // ← 不带 ^
+"overrides": { "vue-router": "4.5.1", "vue": "3.4.21" }
+```
+
+**为什么**（2026-09-30 实际踩到并修复）：
+
+```
+@dcloudio/uni-h5@3.0.0-4030620241128001  声明 vue-router: ^4.3.0
+        └── npm 解析到 vue-router@4.6.4
+                 └── peerDependencies: vue: ^3.5.0    ← 与顶层 vue 3.4.21 冲突
+                          └── npm 退让：在 @dcloudio/uni-h5/node_modules/ 下
+                              再装一整套 vue@3.5.43（编译器 + runtime-dom + shared 全来一遍）
+```
+
+uni-app 的小程序运行链（`vite-plugin-uni` / `uni-cli-shared` / `uni-mp-vue`）的依赖全部钉在 **3.4.21**，而构建时解析到的 `vue` 成了 3.5.43 → 产物里混入两份运行时 → 启动即崩：`TypeError: Cannot read properties of undefined (reading 'setPageTypeById')`。
+
+**分水岭版本**：`vue-router` 在 **4.6.0** 把 peer 从 `vue: ^3.2.0` 提到 `^3.5.0`。**4.5.1 是最后一个兼容 vue 3.4.21 的版本**，所以钉 4.5.1。
+
+**如何验证依赖树仍收敛**（改了依赖后跑一次，输出应与此完全一致）：
+
+```bash
+node -e "const p=require('./package-lock.json').packages;['node_modules/vue','node_modules/vue-router','node_modules/@vue/runtime-core','node_modules/@dcloudio/uni-h5/node_modules/vue'].forEach(k=>console.log(k, p[k]?p[k].version:'(不存在)'))"
+# 期望输出：
+#   node_modules/vue                             3.4.21
+#   node_modules/vue-router                      4.5.1
+#   node_modules/@vue/runtime-core               (不存在)
+#   node_modules/@dcloudio/uni-h5/node_modules/vue  (不存在)
+```
+
+最后两行出现任何版本号就说明**又裂了**。
+
+> ⚠️ **npm 的坑**：`overrides` 只在生成锁文件时生效。本次修复中 `npm install` 一直判定「up to date」直接跳过重算，`--force` 也无效 —— 最后是手工把 `package-lock.json` 里 `@dcloudio/uni-h5` 的 `vue-router` 区间改成 `4.5.1` 并删掉嵌套条目，再 `npm install` 才收敛（`removed 19 packages`）。**如果你看到 `npm install` 说 up to date 但上表验证不过，就是要手工改锁文件。**
 
 ---
 

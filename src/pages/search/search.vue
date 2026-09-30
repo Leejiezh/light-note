@@ -2,7 +2,7 @@
   <view class="page">
     <!-- 搜索框 -->
     <view class="searchbar">
-      <text class="icon" aria-hidden="true">🔍</text>
+      <Icon name="search" :size="34" color="var(--text-tertiary)" />
       <input
         v-model="keyword"
         class="input"
@@ -22,7 +22,7 @@
         aria-label="清空关键词"
         @tap="clear"
       >
-        <text>✕</text>
+        <Icon name="close" :size="26" color="var(--text-tertiary)" />
       </view>
     </view>
 
@@ -75,6 +75,7 @@
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
+import Icon from '@/components/Icon.vue';
 import { search } from '@/utils/request/index.js';
 
 const keyword = ref('');
@@ -145,11 +146,6 @@ function goDetail(id) {
   box-shadow: var(--shadow-sm);
 }
 
-.icon {
-  font-size: 32rpx;
-  flex: none;
-}
-
 .input {
   flex: 1;
   font-size: $text-base;
@@ -169,8 +165,6 @@ function goDetail(id) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-tertiary);
-  font-size: $text-sm;
 }
 
 /* 空闲态 */
