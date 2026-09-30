@@ -1,0 +1,24 @@
+{
+  "name": "轻记",
+  "appid": "",
+  "description": "记录笔记的小程序",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents"
+  },
+  "h5": {
+    "router": {
+      "base": "/"
+    }
+  },
+  "vueVersion": "3"
+}

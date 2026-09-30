@@ -1,0 +1,379 @@
+<template>
+  <view class="page">
+    <view v-if="loading" class="loading">加载中…</view>
+
+    <template v-else-if="note">
+      <!-- 标题 -->
+      <text class="title">{{ note.title || '无标题' }}</text>
+
+      <!-- 元信息 -->
+      <view class="meta">
+        <text v-if="note.tag && note.tag !== 'all'" class="tag">{{ tagLabel }}</text>
+        <text class="time">{{ formatTime(note.updatedAt) }}</text>
+      </view>
+
+      <!-- 正文：分段渲染 ★ -->
+      <view class="prose">
+        <template v-for="(seg, si) in segments" :key="si">
+          <!-- 普通富文本段：注意是 :nodes，不是 v-html -->
+          <rich-text
+            v-if="seg.type === 'richtext'"
+            class="md-block"
+            :nodes="seg.html"
+          />
+
+          <!--
+            图片段：用原生 <image> 渲染 ★
+            为什么不交给 rich-text：rich-text 内部的 <img> 对「本机路径」
+            （相册选出的 wxfile://…）支持不可靠，真机上常直接加载不出来；
+            原生 <image> 才是稳的。点一下可全屏预览。
+          -->
+          <image
+            v-else-if="seg.type === 'image'"
+            class="md-image"
+            :src="seg.src"
+            :aria-label="seg.alt || '图片'"
+            mode="widthFix"
+            @tap="onPreviewImage(seg.src)"
+          />
+
+          <!-- 待办段：自定义组件，事件可挂载 ★ -->
+          <TodoList
+            v-else-if="seg.type === 'todo'"
+            :items="seg.items"
+            @toggle="(ti) => onToggle(si, ti)"
+          />
+        </template>
+      </view>
+
+      <!-- 底部操作 -->
+      <view class="actions">
+        <view class="btn btn-ghost touch-target" role="button" aria-label="编辑笔记" @tap="goEdit">
+          <text>编辑</text>
+        </view>
+        <view class="btn btn-danger touch-target" role="button" aria-label="删除笔记" @tap="onDelete">
+          <text>删除</text>
+        </view>
+      </view>
+    </template>
+  </view>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue';
+import { onLoad, onUnload } from '@dcloudio/uni-app';
+import TodoList from '@/components/TodoList.vue';
+import { parseToSegments, collectChecks } from '@/utils/markdown/index.js';
+import { getNote, updateChecks, deleteNote } from '@/utils/request/index.js';
+
+const NOTE_ID = ref('');
+const note = ref(null);
+const segments = ref([]);
+const loading = ref(true);
+
+const TAG_LABELS = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '全部' };
+const tagLabel = computed(() => TAG_LABELS[note.value?.tag] || note.value?.tag || '');
+
+onLoad(async (query) => {
+  NOTE_ID.value = query.id;
+  await load();
+});
+
+async function load() {
+  loading.value = true;
+  try {
+    const res = await getNote(NOTE_ID.value);
+    note.value = res;
+    // ★ 分段：待办段单独渲染，其余交给 rich-text
+    segments.value = parseToSegments(res.body, res.checks);
+  } catch (e) {
+    uni.showToast({ title: e.message || '加载失败', icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
+}
+
+/**
+ * 勾选待办 ★
+ *
+ * 注意这里的三步：
+ *   1. 只改这一项（不整体重算 segments）
+ *   2. 同步回全篇 checks（保持契约）
+ *   3. 防抖后调专用接口（不更新 updatedAt）
+ */
+function onToggle(segIndex, itemIndex) {
+  const item = segments.value[segIndex].items[itemIndex];
+  item.checked = !item.checked;
+
+  const checks = collectChecks(segments.value);
+  debouncedSave(checks);
+}
+
+/** 防抖保存：勾选是高频操作，别每次点都打接口 */
+let saveTimer = null;
+function debouncedSave(checks) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      // ★ 仅更新 checks，不更新 updatedAt、不重算 excerpt
+      await updateChecks(NOTE_ID.value, checks);
+    } catch (e) {
+      uni.showToast({ title: '同步失败', icon: 'none' });
+    }
+  }, 600);
+}
+
+function goEdit() {
+  uni.navigateTo({ url: `/pages/editor/editor?id=${NOTE_ID.value}` });
+}
+
+/**
+ * ★ 点图片全屏预览
+ *
+ * 传全部图片地址是为了让用户能在预览器里左右翻；
+ * 预览器由系统渲染，相册选出的本机图片在这里一定能正常显示。
+ */
+function onPreviewImage(src) {
+  const urls = segments.value
+    .filter((s) => s.type === 'image' && s.src)
+    .map((s) => s.src);
+  if (!urls.length) return;
+
+  uni.previewImage({
+    urls,
+    current: src || urls[0],
+    fail: () => uni.showToast({ title: '无法预览该图片', icon: 'none' })
+  });
+}
+
+function onDelete() {
+  uni.showModal({
+    title: '删除笔记',
+    content: '删除后可在回收站恢复，30 天后永久清除。',
+    confirmText: '删除',
+    confirmColor: '#EF4444',
+    success: async ({ confirm }) => {
+      if (!confirm) return;
+      try {
+        await deleteNote(NOTE_ID.value);
+        uni.showToast({ title: '已移入回收站', icon: 'none' });
+        setTimeout(() => uni.navigateBack(), 600);
+      } catch (e) {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    }
+  });
+}
+
+function formatTime(t) {
+  if (!t) return '';
+  const d = new Date(t);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 离开页面时，若还有未保存的勾选，立即提交
+onUnload(() => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    const checks = collectChecks(segments.value);
+    updateChecks(NOTE_ID.value, checks).catch(() => {});
+  }
+});
+</script>
+
+<style lang="scss" scoped>
+.page {
+  min-height: 100vh;
+  padding: $space-4;
+  padding-bottom: $space-10;
+}
+
+.loading {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: $text-sm;
+  padding: $space-10 0;
+}
+
+.title {
+  display: block;
+  font-size: $text-2xl;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  line-height: $leading-tight;
+  margin-bottom: $space-3;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-bottom: $space-5;
+}
+
+.tag {
+  font-size: $text-xs;
+  color: $brand-600;
+  background: $brand-50;
+  padding: 4rpx 14rpx;
+  border-radius: $radius-full;
+}
+
+.time {
+  font-size: $text-xs;
+  color: var(--text-tertiary);
+}
+
+/* 正文排版 */
+.prose {
+  font-size: $text-base;
+  line-height: $leading-loose;
+  color: var(--text-primary);
+}
+
+.actions {
+  display: flex;
+  gap: $space-3;
+  margin-top: $space-8;
+}
+
+/*
+ * ★ 图片段（原生 <image>）
+ * 单靠 width:100% 不够：<image> 有默认尺寸，必须配合 mode="widthFix"
+ * 让高度按原图比例自适应，否则会露出灰色底。
+ */
+.md-image {
+  display: block;
+  width: 100%;
+  margin: $space-3 0;
+  border-radius: $radius-md;
+  background: var(--bg-muted);
+}
+
+.btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  border-radius: $radius-md;
+  font-size: $text-sm;
+  font-weight: $font-medium;
+  transition: transform $duration-fast $ease-out;
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.btn-ghost {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  background: transparent;
+  color: $error-500;
+  border: 2rpx solid $error-500;
+}
+</style>
+
+<!--
+  ⚠️ rich-text 内容样式必须放在「非 scoped」的 style 里。
+  原因（官方文档）：rich-text 内部的节点不在组件的 scoped 作用域内，
+  scoped 样式不会应用到 rich-text 渲染出的标签上。
+-->
+<style lang="scss">
+.prose {
+  .md-block,
+  rich-text {
+    display: block;
+  }
+
+  h1 { font-size: 48rpx; font-weight: 700; margin: 40rpx 0 16rpx; line-height: 1.3; }
+  h2 { font-size: 40rpx; font-weight: 700; margin: 36rpx 0 16rpx; line-height: 1.3; }
+  h3 { font-size: 36rpx; font-weight: 600; margin: 32rpx 0 12rpx; line-height: 1.35; }
+  h4, h5, h6 { font-size: 32rpx; font-weight: 600; margin: 28rpx 0 12rpx; }
+
+  p {
+    margin: 0 0 24rpx;
+    line-height: 1.75;
+  }
+
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+  del { text-decoration: line-through; opacity: 0.6; }
+
+  a {
+    color: #6D28D9;
+    text-decoration: underline;
+  }
+
+  ul, ol {
+    margin: 0 0 24rpx;
+    padding-left: 40rpx;
+  }
+  li { margin-bottom: 8rpx; line-height: 1.7; }
+
+  blockquote {
+    margin: 0 0 24rpx;
+    padding: 16rpx 24rpx;
+    border-left: 6rpx solid #7C3AED;
+    background: #F5F3FF;
+    color: #45454F;
+    border-radius: 0 8rpx 8rpx 0;
+  }
+
+  /* rich-text 支持 pre / code，无需降级模拟 */
+  pre {
+    margin: 0 0 24rpx;
+    padding: 24rpx;
+    background: #232329;
+    color: #F4F4F7;
+    border-radius: 16rpx;
+    font-size: 26rpx;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
+  /* 行内代码（非 pre 内） */
+  p code, li code, blockquote code {
+    background: #F4F4F7;
+    color: #6D28D9;
+    padding: 2rpx 10rpx;
+    border-radius: 8rpx;
+  }
+
+  /* ⚠️ 小程序端不支持标签选择器，分割线必须用 class 选择器 */
+  .md-hr,
+  hr.md-hr {
+    display: block;
+    margin: 40rpx 0;
+    border: 0;
+    border-top: 2rpx solid #E6E6EC;
+    height: 0;
+  }
+
+  img {
+    max-width: 100%;
+    border-radius: 16rpx;
+    margin: 16rpx 0;
+  }
+
+  /* 搜索高亮的 span（服务端返回 highlights 时使用） */
+  .hl {
+    background: #FEF08A;
+    color: #232329;
+    border-radius: 4rpx;
+    padding: 0 4rpx;
+  }
+}
+</style>

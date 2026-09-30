@@ -1,0 +1,110 @@
+// ============================================================
+// 轻记 · 全局样式
+// 对应 design-spec.md 的语义令牌映射
+// ============================================================
+
+/* 语义令牌：默认（浅色） */
+page {
+  // 品牌
+  --brand-500: #7C3AED;
+  --brand-600: #6D28D9;
+  --brand-100: #EDE9FE;
+  --brand-50:  #F5F3FF;
+
+  // 背景层
+  --bg-page:    #F7F7FA;
+  --bg-surface: #FFFFFF;
+  --bg-muted:   #F4F4F7;
+
+  // 文字层（严格中性）
+  --text-primary:   #232329;
+  --text-secondary: #5A5A66;
+  --text-tertiary:  #6E6E7A;
+  --text-disabled:  #9C9CA8;  // ⚠️ 仅禁用态，不用于正文
+
+  // 边框
+  --border-default: #E6E6EC;
+  --border-strong:  #D4D4DC;
+
+  // 语义
+  --semantic-success: #10B981;
+  --semantic-warning: #F59E0B;
+  --semantic-error:   #EF4444;
+
+  // 阴影
+  --shadow-sm: 0 2rpx 8rpx rgba(35, 35, 41, 0.06);
+  --shadow-md: 0 8rpx 24rpx rgba(35, 35, 41, 0.08);
+
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-size: 32rpx;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 暗色模式：品牌色必须提亮，否则对比度不达标 */
+.theme-dark,
+page.theme-dark {
+  --brand-500: #A98BFF;  // ⚠️ #7C3AED 在深色上仅 ~2.4:1，必须提亮
+  --brand-600: #9B7BFF;
+  --brand-100: #2E1F5E;
+  --brand-50:  #1F1440;
+
+  --bg-page:    #16161A;
+  --bg-surface: #232329;
+  --bg-muted:   #2F2F37;
+
+  --text-primary:   #F4F4F7;
+  --text-secondary: #A8A8B4;
+  --text-tertiary:  #8E8E9A;
+  --text-disabled:  #5A5A66;
+
+  --border-default: #2F2F37;
+  --border-strong:  #45454F;
+
+  --semantic-success: #34D399;
+  --semantic-warning: #FBBF24;
+  --semantic-error:   #F87171;
+
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8rpx 24rpx rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- 通用工具类 ---------- */
+
+/* 触摸目标 */
+.touch-target {
+  min-height: 88rpx;
+  min-width: 88rpx;
+}
+
+/* 焦点环（H5 端可见，小程序端无键盘导航） */
+.focus-ring:focus-visible {
+  outline: 4rpx solid var(--brand-500);
+  outline-offset: 2rpx;
+}
+
+/* 单行 / 多行截断 */
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 无障碍：仅供屏幕阅读器 */
+.sr-only {
+  position: absolute;
+  width: 1rpx;
+  height: 1rpx;
+  padding: 0;
+  margin: -1rpx;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
