@@ -1,10 +1,14 @@
-<script setup>
+<script setup lang="ts">
 import { onLaunch, onShow } from '@dcloudio/uni-app';
+import { ensureLogin } from '@/api';
 
 onLaunch(() => {
-  // 读取主题设置（暗色模式）
-  const theme = uni.getStorageSync('theme') || 'light';
+  // 读取主题设置（暗色模式）：getStorageSync 返回 unknown，只认 'dark'，其余一律 light
+  const theme = uni.getStorageSync('theme') === 'dark' ? 'dark' : 'light';
   applyTheme(theme);
+
+  // 静默登录：wx.login 无需用户授权；失败不阻塞启动（后续 401 会自动重登）
+  ensureLogin().catch(() => {});
 });
 
 onShow(() => {
@@ -12,7 +16,7 @@ onShow(() => {
 });
 
 /** 应用主题：切换 page 上的 class */
-function applyTheme(theme) {
+function applyTheme(theme: string) {
   // #ifdef H5
   document.documentElement.classList.toggle('theme-dark', theme === 'dark');
   // #endif

@@ -1,7 +1,7 @@
 // ============================================================
 // 轻记 · 行内格式的纯函数工具
 //
-// ★ 不依赖 uni / 小程序环境，可以直接 node 单测（见 tests/parser.test.mjs）。
+// ★ 不依赖 uni / 小程序环境，可以直接单测（见 tests/parser.test.ts）。
 //   编辑器工具栏的「包裹标记 + 光标落点」全靠这里，
 //   区间算差一位就会把光标放到错误的位置，所以单独抽出来锁住行为。
 // ============================================================
@@ -9,9 +9,15 @@
 /**
  * 把 number 夹到 [0, max]，并把 undefined / NaN / 小数 规整成整数
  */
-function clamp(n, max) {
-  const v = Number.isFinite(n) ? Math.trunc(n) : 0;
+function clamp(n: unknown, max: number): number {
+  const v = Number.isFinite(n) ? Math.trunc(n as number) : 0;
   return Math.min(Math.max(v, 0), max);
+}
+
+/** wrapRange 的返回值：包裹后的正文 + 光标落点 */
+export interface WrapResult {
+  text: string;
+  caret: number;
 }
 
 /**
@@ -23,13 +29,12 @@ function clamp(n, max) {
  *   对应「刚开启格式、一个字都没输入就关闭」，此时不该往正文里塞 `****`
  * - start 越界 / 为负 → 夹到合法范围
  *
- * @param {string} text  原正文
- * @param {number} start 区间起点（含）
- * @param {number} end   区间终点（不含）
- * @param {string} mark  首尾标记，如 '**' / '*' / '~~' / '`'
- * @returns {{ text: string, caret: number } | null}
+ * @param text  原正文
+ * @param start 区间起点（含）
+ * @param end   区间终点（不含）
+ * @param mark  首尾标记，如 '**' / '*' / '~~' / '`'
  */
-export function wrapRange(text, start, end, mark) {
+export function wrapRange(text: unknown, start: unknown, end: unknown, mark: unknown): WrapResult | null {
   if (typeof text !== 'string' || !mark) return null;
 
   const s = clamp(start, text.length);
@@ -38,8 +43,8 @@ export function wrapRange(text, start, end, mark) {
 
   const inner = text.slice(s, e);
   return {
-    text: text.slice(0, s) + mark + inner + mark + text.slice(e),
-    caret: e + mark.length * 2
+    text: text.slice(0, s) + String(mark) + inner + String(mark) + text.slice(e),
+    caret: e + String(mark).length * 2
   };
 }
 
@@ -49,11 +54,10 @@ export function wrapRange(text, start, end, mark) {
  * ⚠️ alt 里的 `[` `]` 会破坏 `![alt](url)` 的结构（解析器认不出、图片变文字），
  *    所以直接剔除；url 为空时返回 null，交由调用方决定怎么提示。
  *
- * @param {string} url 图片地址（网络地址，或相册选出的本机路径）
- * @param {string} [alt] 图片描述，默认「图片」
- * @returns {string|null}
+ * @param url 图片地址（网络地址，或相册选出的本机路径）
+ * @param alt 图片描述，默认「图片」
  */
-export function imageMarkdown(url, alt = '图片') {
+export function imageMarkdown(url: unknown, alt: unknown = '图片'): string | null {
   const src = String(url == null ? '' : url).trim();
   if (!src) return null;
 
@@ -65,6 +69,13 @@ export function imageMarkdown(url, alt = '图片') {
   return `![${label || '图片'}](${src})`;
 }
 
+/** insertImageBlock 的返回值：插入后的正文 + 光标落点 + 插入的片段 */
+export interface InsertImageResult {
+  text: string;
+  caret: number;
+  snippet: string;
+}
+
 /**
  * 把图片插到 Pos 处，并保证它独占一行
  *
@@ -74,13 +85,12 @@ export function imageMarkdown(url, alt = '图片') {
  *
  * 光标落在整块之后（即尾部换行的下一行行首），用户可以直接接着写。
  *
- * @param {string} text 原正文
- * @param {number} pos  插入位置
- * @param {string} url  图片地址
- * @param {string} [alt] 图片描述
- * @returns {{ text: string, caret: number, snippet: string } | null}
+ * @param text 原正文
+ * @param pos  插入位置
+ * @param url  图片地址
+ * @param alt  图片描述
  */
-export function insertImageBlock(text, pos, url, alt) {
+export function insertImageBlock(text: unknown, pos: unknown, url: unknown, alt?: unknown): InsertImageResult | null {
   if (typeof text !== 'string') return null;
 
   const md = imageMarkdown(url, alt);

@@ -8,10 +8,10 @@
 //         加粗必须早于斜体，否则 ** 会被 * 抢先匹配。
 // ============================================================
 
-import { ALLOWED_PROTOCOLS, MEDIA_PROTOCOLS } from './rules.js';
+import { ALLOWED_PROTOCOLS, MEDIA_PROTOCOLS } from './rules';
 
 /** HTML 转义 —— XSS 防护第一道防线 */
-export function esc(str) {
+export function esc(str: unknown): string {
   return String(str == null ? '' : str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -24,11 +24,10 @@ export function esc(str) {
  * 协议白名单校验
  * 拦截 javascript: / data:text/html 等危险协议
  *
- * @param {string} url
- * @param {object} [opts]
- * @param {boolean} [opts.media] 图片专用：额外放行 wxfile: / blob:（本机文件来源）
+ * @param url    待校验地址（运行时可能收到 null / 非字符串，统一容错）
+ * @param opts   图片专用：额外放行 wxfile: / blob:（本机文件来源）
  */
-export function isSafeUrl(url, opts = {}) {
+export function isSafeUrl(url: unknown, opts: { media?: boolean } = {}): boolean {
   const u = String(url || '').trim().toLowerCase();
   if (!u) return false;
   // 相对路径 / 锚点允许
@@ -49,16 +48,16 @@ const URL_PAT = '((?:[^()\\s]|\\([^()\\s]*\\))+)';
 
 /**
  * 行内解析主函数
- * @param {string} text 原始行内文本（未转义）
- * @returns {string} HTML 片段（已转义，仅含白名单标签）
+ * @param text 原始行内文本（未转义）
+ * @returns HTML 片段（已转义，仅含白名单标签）
  */
-export function parseInline(text) {
+export function parseInline(text: unknown): string {
   // ① 先整体转义，之后所有替换都在安全文本上进行
   let s = esc(text);
 
   // ② 摘出行内代码（stash），避免其内容被后续规则处理
-  const stash = [];
-  s = s.replace(/`([^`\n]+)`/g, (m, code) => {
+  const stash: string[] = [];
+  s = s.replace(/`([^`\n]+)`/g, (m, code: string) => {
     stash.push(`<code class="md-code-inline">${code}</code>`);
     return `\u0000${stash.length - 1}\u0000`;
   });
@@ -67,13 +66,14 @@ export function parseInline(text) {
   //    ★ 图片用 media 白名单：放行 wxfile: / blob:（相册选的本机文件）
   s = s.replace(
     new RegExp(`!\\[([^\\]]*)\\]\\(${URL_PAT}\\)`, 'g'),
-    (m, alt, url) => (isSafeUrl(url, { media: true }) ? `<img class="md-img" src="${url}" alt="${alt}">` : alt)
+    (m, alt: string, url: string) =>
+      isSafeUrl(url, { media: true }) ? `<img class="md-img" src="${url}" alt="${alt}">` : alt
   );
 
   // ④ 链接 [text](url)
   s = s.replace(
     new RegExp(`\\[([^\\]]*)\\]\\(${URL_PAT}\\)`, 'g'),
-    (m, label, url) => (isSafeUrl(url) ? `<a class="md-a" href="${url}">${label}</a>` : label)
+    (m, label: string, url: string) => (isSafeUrl(url) ? `<a class="md-a" href="${url}">${label}</a>` : label)
   );
 
   // ⑤ 加粗（必须早于斜体）
@@ -86,5 +86,6 @@ export function parseInline(text) {
   s = s.replace(/~~([^~\n]+)~~/g, '<del class="md-del">$1</del>');
 
   // ⑧ 还原行内代码
-  return s.replace(/\u0000(\d+)\u0000/g, (m, i) => stash[Number(i)] || '');
+  // eslint-disable-next-line no-control-regex -- \u0000 是行内代码的占位符，不是控制字符注入
+  return s.replace(/\u0000(\d+)\u0000/g, (m, i: string) => stash[Number(i)] || '');
 }

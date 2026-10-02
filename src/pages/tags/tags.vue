@@ -36,17 +36,18 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
-import { getTags } from '@/utils/request/index.js';
+import { getTags } from '@/api';
+import type { TagItem } from '@/api';
 
-const tags = ref([]);
+const tags = ref<TagItem[]>([]);
 const loading = ref(false);
 
-const LABELS = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '未分类' };
-const COLORS = {
+const LABELS: Record<string, string> = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '未分类' };
+const COLORS: Record<string, string> = {
   work: '#7C3AED',
   design: '#EC4899',
   tech: '#3B82F6',
@@ -54,8 +55,8 @@ const COLORS = {
   all: '#9C9CA8'
 };
 
-const labelOf = (n) => LABELS[n] || n;
-const colorOf = (n) => COLORS[n] || '#7C3AED';
+const labelOf = (n: string) => LABELS[n] || n;
+const colorOf = (n: string) => COLORS[n] || '#7C3AED';
 
 async function load() {
   loading.value = true;
@@ -69,7 +70,7 @@ async function load() {
   }
 }
 
-function goList(name) {
+function goList(_name: string) {
   uni.switchTab({ url: '/pages/list/list' });
 }
 

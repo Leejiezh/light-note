@@ -15,7 +15,9 @@ npm install             # 装依赖
 npm run dev:h5          # 浏览器预览，秒级热更新，调交互/样式用
 npm run dev:mp-weixin   # 编译到小程序并持续监听 → dist/dev/mp-weixin
 npm run build:mp-weixin # 生产构建 → dist/build/mp-weixin
-npm test                # Markdown 解析器单测，不依赖 uni-app 环境
+npm test                # 单测（vitest）：markdown 解析器 + 个人资料存储，不依赖 uni-app 环境
+npm run type-check      # vue-tsc 全量类型检查
+npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型感知规则）
 ```
 
 微信开发者工具**必须打开 `dist/dev/mp-weixin`**，不是项目根目录——选错会报「找不到 app.json」。这是本项目最高频的坑。
@@ -40,18 +42,18 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 - `textarea` 需要 `hold-keyboard`，否则点工具栏按钮会先把键盘顶掉
 - 工具栏是 `position: fixed; bottom: var(--kb)` 的固定层（键盘高度由 JS 写入 CSS 变量），不是页面底部的一行
 - **行内格式（B / I / S / 代码）是「开关式挂起格式」，不是插模板文字**：点一下按钮变实心（开启），再点一下才把「开启到现在输入的这段」包上标记。**不要改回「点一下插 `**加粗文字**`」**，那正是被废弃的旧行为
-- 行内格式的标记符只在 `rules.js` 的 `INLINE_FORMATS` 里定义，**必须与同文件 `INLINE_MARKERS` 的正则保持一致**（有单测锁这条不变式）；包裹区间的数学在 `format.js`
+- 行内格式的标记符只在 `rules.ts` 的 `INLINE_FORMATS` 里定义，**必须与同文件 `INLINE_MARKERS` 的正则保持一致**（有单测锁这条不变式）；包裹区间的数学在 `format.ts`
 - `closeInlineFormat(reposition)`：只有「用户主动关格式」才传 `true`；**收起键盘 / 失焦 / 保存三处必须传 `false`**，否则光标复位会重新 focus，把键盘拉回来、把「收起」抵掉
 - 读选区靠 `wx.getSelectedTextRange`（要 focus，所以 `hold-keyboard` 不能删）；取不到时静默降级为「从光标处开始加粗」，不要让功能直接报错
 - **图片按钮调起本机相册，不是插模板**：点「图片」走 `uni.chooseMedia`（小程序）/ `uni.chooseImage`（H5），选中后必须 `fs.saveFile` 落盘再插入真实路径。**不要把 `![图片描述](图片链接)` 加回 `TOOLBAR_SNIPPETS`**，那是被废弃的旧行为
-- 图片插入要用 `format.js` 的 `insertImageBlock`（保证独占一行）；详情页把「整行就是一张图」的行切成 `image` 段，用**原生 `<image>`** 渲染 —— rich-text 的 `<img>` 对本机路径不可靠
+- 图片插入要用 `format.ts` 的 `insertImageBlock`（保证独占一行）；详情页把「整行就是一张图」的行切成 `image` 段，用**原生 `<image>`** 渲染 —— rich-text 的 `<img>` 对本机路径不可靠
 - `isSafeUrl(url, { media: true })` 才放行 `wxfile:` / `blob:`；**链接仍然只认 http/https/mailto，`data:` 一律不放行**（所以不要用 base64 存图）
 
 ### 4. 待办必须用原生组件
 
 `rich-text` 会屏蔽子元素事件，勾选待办**不能**渲染在 `rich-text` 里，走 `components/TodoList.vue`。同时：
 - `rich-text` 的样式必须写在**非 scoped** 的 `<style>` 块里
-- 小程序端不支持标签选择器（p/h1 等不是内置组件，够不到 rich-text 内部节点），解析器（`block.js` / `inline.js`）输出的标签**必须带 `md-` class 前缀**，详情页样式按 `.md-*` 写。新增语法标签时三处同步：解析器输出 class → 详情页 `.md-*` 样式 → 单测断言
+- 小程序端不支持标签选择器（p/h1 等不是内置组件，够不到 rich-text 内部节点），解析器（`block.ts` / `inline.ts`）输出的标签**必须带 `md-` class 前缀**，详情页样式按 `.md-*` 写。新增语法标签时三处同步：解析器输出 class → 详情页 `.md-*` 样式 → 单测断言
 
 ### 5. 样式统一走令牌
 
@@ -63,7 +65,7 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 
 ### 7. 改 Markdown 解析器必须跑测试
 
-`src/utils/markdown/` 是纯 JS、可跨端复用，配套 `tests/parser.test.mjs`（89 个用例）；`src/utils/store/profile.js`（我的页资料存储）配套 `tests/profile.test.mjs`（42 个用例）。**任何改动都要 `npm test` 全绿**（两条套件串行跑）。分段解析的 `checks` 契约（`segment.js`）被列表页和详情页共用，改动前先看清调用方。
+`src/utils/markdown/` 是纯 TS、可跨端复用，配套 `tests/parser.test.ts`（89 个用例）；`src/utils/store/profile.ts`（我的页资料存储）配套 `tests/profile.test.ts`（42 个用例）。**任何改动都要 `npm test` 全绿**（vitest，两条套件一起跑）。分段解析的 `checks` 契约（`segment.ts`）被列表页和详情页共用，改动前先看清调用方。
 
 ### 8. 图标只用两条通道，不要混入 emoji / 文字符号
 
@@ -77,12 +79,12 @@ npm test                # Markdown 解析器单测，不依赖 uni-app 环境
 |---|---|
 | `src/pages/` | 六个页面：list / detail / editor / tags / search / mine |
 | `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue`、`Icon.vue`（★ 图标） |
-| `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.js` |
-| `src/utils/request/` | 请求封装 + `mock.js`（默认开启 Mock） |
-| `src/utils/store/` | 本地存储层：`profile.js`（我的页个人资料，配套 42 个单测） |
+| `src/api/` | 请求层（分层）：`client.ts` 传输 / `auth.ts` 鉴权 / `request.ts` 编排（401 重登重放）/ `modules/` 领域接口 / `mock/` stub；`config.ts` 的 `USE_MOCK` 是 mock 开关 |
+| `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.ts` |
+| `src/utils/store/` | 本地存储层：`profile.ts`（我的页个人资料，配套 42 个单测） |
 | `src/styles/` | `tokens.scss`（SCSS 令牌）、`global.scss`（CSS 变量）、`iconfont.scss`（图标字体） |
 | `src/static/` | `fonts/lnicon.ttf`（图标字体子集）、`tabbar/`（tabBar PNG 图标） |
-| `tests/parser.test.mjs` | 解析器 + 行内格式 + 图片插入单测（89 个用例；`tests/profile.test.mjs` 另有 42 个） |
+| `tests/parser.test.ts` | 解析器 + 行内格式 + 图片插入单测（89 个用例；`tests/profile.test.ts` 另有 42 个） |
 | `RUNNING.md` | 运行文档：环境、两种运行方式、技术点、常见问题 |
 
 ## 交付前自检

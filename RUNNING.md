@@ -108,17 +108,23 @@ light-note/
 │   │   ├── NoteCard.vue         笔记卡片
 │   │   └── EmptyState.vue       空状态
 │   ├── utils/
-│   │   ├── markdown/            ★ Markdown 解析器（纯 JS，可跨端复用）
-│   │   │   ├── rules.js         语法规则常量（渲染与摘要共用）
-│   │   │   ├── inline.js        行内解析 + XSS 防护
-│   │   │   ├── block.js         块级解析 → rich-text HTML
-│   │   │   ├── segment.js       ★ 分段解析 + checks 契约工具
-│   │   │   ├── excerpt.js       摘要生成 extractExcerpt
-│   │   │   ├── format.js        ★ 行内格式包裹 + 图片插入（纯函数，有单测）
-│   │   │   └── index.js         统一出口
-│   │   └── request/
-│   │       ├── index.js         请求封装（对应接口契约）
-│   │       └── mock.js          Mock 数据（默认启用）
+│   │   ├── markdown/            ★ Markdown 解析器（纯 TS，可跨端复用）
+│   │   │   ├── rules.ts         语法规则常量（渲染与摘要共用）
+│   │   │   ├── inline.ts        行内解析 + XSS 防护
+│   │   │   ├── block.ts         块级解析 → rich-text HTML
+│   │   │   ├── segment.ts       ★ 分段解析 + checks 契约工具
+│   │   │   ├── excerpt.ts       摘要生成 extractExcerpt
+│   │   │   ├── format.ts        ★ 行内格式包裹 + 图片插入（纯函数，有单测）
+│   │   │   └── index.ts         统一出口
+│   │   └── store/
+│   │       └── profile.ts       我的页个人资料存储（有单测）
+│   ├── api/                     ★ 请求层（分层结构）
+│   │   ├── config.ts            BASE_URL / 超时 / USE_MOCK 开关
+│   │   ├── client.ts            传输层：uni.request + 统一包装剥壳
+│   │   ├── auth.ts              鉴权层：token 存取、静默登录
+│   │   ├── request.ts            编排层：带 Authorization、401 自动重登重放
+│   │   ├── modules/             领域接口：note / tag / search
+│   │   └── mock/                Mock 数据与路由（内存 stub）
 │   ├── styles/
 │   │   ├── tokens.scss          SCSS 设计令牌
 │   │   └── global.scss          CSS 变量 + 语义令牌（含暗色模式）
@@ -127,7 +133,10 @@ light-note/
 │   ├── App.vue
 │   └── main.js
 ├── tests/
-│   └── parser.test.mjs          解析器 + 行内格式 + 图片插入单元测试（89 个用例）
+│   ├── parser.test.ts           解析器 + 行内格式 + 图片插入单元测试（89 个用例）
+│   └── profile.test.ts          个人资料存储单元测试（42 个用例）
+├── tsconfig.json
+├── vitest.config.ts
 ├── vite.config.js
 └── package.json
 ```
@@ -136,12 +145,14 @@ light-note/
 
 ## 六、跑测试
 
-**两个纯 JS 模块都有独立单元测试，不依赖 uni-app 环境，直接 node 跑**：
+**两个纯 TS 模块都有独立单元测试，不依赖 uni-app 环境，用 vitest 跑**：
 
 ```bash
-npm test                       # 全部：解析器 + 个人资料存储
-node tests/parser.test.mjs     # 只跑解析器
-node tests/profile.test.mjs    # 只跑个人资料存储
+npm test                            # 全部：解析器 + 个人资料存储
+npx vitest run tests/parser.test.ts # 只跑解析器
+npx vitest run tests/profile.test.ts# 只跑个人资料存储
+npm run type-check                  # vue-tsc 全量类型检查
+npm run lint                        # ESLint（flat config，含类型感知规则）
 ```
 
 预期输出：
@@ -168,7 +179,7 @@ profile 测试：42 通过，0 失败
 | **profile 校验** ★ | 昵称必填与长度、邮箱宽松格式、临界长度通过 |
 | **profile 读写闭环** ★ | 归一化兜底（脏数据回落默认值）、非法邮箱清空、写入读回一致 |
 
-> **改解析器后务必跑一遍测试。** 尤其是 `segment.js`，跨段累加写错会导致勾选整体错位，而这种 bug 在页面上很难肉眼发现。
+> **改解析器后务必跑一遍测试。** 尤其是 `segment.ts`，跨段累加写错会导致勾选整体错位，而这种 bug 在页面上很难肉眼发现。
 
 ---
 
@@ -176,7 +187,7 @@ profile 测试：42 通过，0 失败
 
 **默认使用 Mock 数据**，无需后端即可完整跑通所有交互。
 
-切换开关在 `src/utils/request/index.js`：
+切换开关在 `src/api/config.ts`：
 
 ```javascript
 const USE_MOCK = true;                        // ← 改为 false 走真实后端
@@ -211,7 +222,7 @@ const BASE_URL = 'https://api.example.com';   // ← 改成你的后端地址
 ]
 ```
 
-**核心是 `globalTodoIdx` 必须跨段累加**（`utils/markdown/segment.js`）。写错的话，第二段待办会去取第一段的 `checks`，导致勾选整体错位。测试用例已覆盖这一点。
+**核心是 `globalTodoIdx` 必须跨段累加**（`utils/markdown/segment.ts`）。写错的话，第二段待办会去取第一段的 `checks`，导致勾选整体错位。测试用例已覆盖这一点。
 
 ### ② `rich-text` 的样式要放在非 scoped 里
 
@@ -291,7 +302,7 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 
 > ⚠️ `wx.getSelectedTextRange` 在社区里有「skyline 下无效 / 部分 iOS 安卓机型失败」的报告；本项目用的是默认 WebView 渲染器（`manifest.json` 未开 skyline），但**仍须真机验证**。若真机上取不到选区，选中加粗会静默降级为「从光标处开始加粗」。
 
-> 区间数学（包裹结果 + 光标落点）抽在 `src/utils/markdown/format.js`，有 15 个单测用例锁住 —— 改这块先跑 `npm test`。
+> 区间数学（包裹结果 + 光标落点）抽在 `src/utils/markdown/format.ts`，有 15 个单测用例锁住 —— 改这块先跑 `npm test`。
 
 ### ⑦ 图片：点「图片」为什么是调起相册，图片又存在哪
 
@@ -317,7 +328,7 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 
 > ⚠️ 已知边界：笔记里存的是**本机路径**，所以换设备 / 清了缓存就看不到了 —— 这是当前没有后端上传接口的必然结果。接后端时只需把 `editor.vue` 的 `persistImage` 换成 `uni.uploadFile` 并返回网络地址，正文格式和渲染层都不用动。见 §十三 第 5 条。
 
-> 图片 Markdown 的生成与插入位置（`imageMarkdown` / `insertImageBlock`）同样抽在 `format.js` 里，有单测覆盖 —— 改这块记得跑 `npm test`。
+> 图片 Markdown 的生成与插入位置（`imageMarkdown` / `insertImageBlock`）同样抽在 `format.ts` 里，有单测覆盖 —— 改这块记得跑 `npm test`。
 
 ### ⑧ 图标体系：lnicon 字体 + tabBar PNG
 
@@ -414,8 +425,8 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 |---|---|
 | `styles/tokens.scss`、`global.scss` | `notes-design/design-spec.md` |
 | `utils/markdown/*` | `notes-design/syntax-render-mapping.md` |
-| `utils/markdown/segment.js` | `notes-design/uniapp-adaptation.md` §三 |
-| `utils/request/index.js` | `notes-design/data-api-contract.md` §五 |
+| `utils/markdown/segment.ts` | `notes-design/uniapp-adaptation.md` §三 |
+| `src/api/`（请求层） | `notes-design/data-api-contract.md` §五 |
 | `pages/editor/editor.vue` | `notes-design/editor-boundary-spec.md` |
 
 ---
@@ -437,12 +448,12 @@ footer（fixed 屏幕底部，非编辑态） / toolbar（fixed 键盘上方，�
 | 点工具栏按钮后键盘/样式栏消失 | `textarea` 默认「点击页面即收键盘」 | `textarea` 加 `hold-keyboard`；样式栏本身是 `bottom: var(--kb)` 的固定层，见 §八 ⑤ |
 | 键盘右下角是「完成」，打不出换行 | `confirm-type` 默认 `done`；绑了 `@confirm` 收键盘 | 改成 `confirm-type="return"`，并去掉 textarea 上的 `@confirm`（收键盘只留样式栏「收起」+ 正文下方空白区） |
 | 点 B 直接出现 `**加粗文字**` 模板 | 旧实现是把 `TOOLBAR_SNIPPETS.b` 整段插进正文 | 行内格式改为开关式「挂起格式」，见 §八 ⑥；模板只剩块级工具在用 |
-| 开了格式但一个字没输入，正文里多了 `****` | 空区间也被包裹 | `wrapRange` 对空区间返回 `null`，调用方「什么都不做」，见 `format.js` |
+| 开了格式但一个字没输入，正文里多了 `****` | 空区间也被包裹 | `wrapRange` 对空区间返回 `null`，调用方「什么都不做」，见 `format.ts` |
 | 点「收起」后键盘又自己弹回来 | 收尾挂起格式时复位了光标，重新 focus 把键盘拉回来 | `closeInlineFormat(false)`：收起 / 失焦 / 保存三处都不复位光标 |
 | 点「图片」后正文里出现 `![图片描述](图片链接)` | 有人把 `TOOLBAR_SNIPPETS.image` 加回来了 | 图片已改成走相册（见 §八 ⑦），模板里不该再有 `image` 项 |
 | 点「图片」什么都没发生 | 用户点了取消，或相册权限被拒 | 取消静默处理（正常操作）；权限被拒会弹「去设置」引导。真机首次被拒后系统不再弹授权框 |
 | 详情页图片显示不出来 | 笔记里存的是**本机路径**：换设备 / 清缓存后失效；或环境对 `wxfile://` 渲染不稳定 | 图片段用原生 `<image>`（`parseToSegments` 的 `image` 段）而非 rich-text，见 §八 ⑦；彻底解决要接后端上传 |
-| 图片把整行排版挤乱了 | 图片没独占一行，被当成行内内容 | 插入用 `insertImageBlock`（自动补前后换行）；`segment.js` 只把「整行就是一张图」切成图片段 |
+| 图片把整行排版挤乱了 | 图片没独占一行，被当成行内内容 | 插入用 `insertImageBlock`（自动补前后换行）；`segment.ts` 只把「整行就是一张图」切成图片段 |
 
 ### 依赖版本不变式（★ 动依赖前必读）
 

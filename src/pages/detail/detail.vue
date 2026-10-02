@@ -59,23 +59,26 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import TodoList from '@/components/TodoList.vue';
-import { parseToSegments, collectChecks } from '@/utils/markdown/index.js';
-import { getNote, updateChecks, deleteNote } from '@/utils/request/index.js';
+import { parseToSegments, collectChecks } from '@/utils/markdown';
+import type { Segment } from '@/utils/markdown';
+import { getNote, updateChecks, deleteNote } from '@/api';
+import type { Note } from '@/api';
+import { errorMessage } from '@/utils/errorMessage';
 
 const NOTE_ID = ref('');
-const note = ref(null);
-const segments = ref([]);
+const note = ref<Note | null>(null);
+const segments = ref<Segment[]>([]);
 const loading = ref(true);
 
-const TAG_LABELS = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '全部' };
-const tagLabel = computed(() => TAG_LABELS[note.value?.tag] || note.value?.tag || '');
+const TAG_LABELS: Record<string, string> = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '全部' };
+const tagLabel = computed(() => TAG_LABELS[note.value?.tag || ''] || note.value?.tag || '');
 
-onLoad(async (query) => {
-  NOTE_ID.value = query.id;
+onLoad(async (query?: Record<string, string | undefined>) => {
+  NOTE_ID.value = query?.id || '';
   await load();
 });
 
@@ -87,7 +90,7 @@ async function load() {
     // ★ 分段：待办段单独渲染，其余交给 rich-text
     segments.value = parseToSegments(res.body, res.checks);
   } catch (e) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' });
+    uni.showToast({ title: errorMessage(e, '加载失败'), icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -101,8 +104,11 @@ async function load() {
  *   2. 同步回全篇 checks（保持契约）
  *   3. 防抖后调专用接口（不更新 updatedAt）
  */
-function onToggle(segIndex, itemIndex) {
-  const item = segments.value[segIndex].items[itemIndex];
+function onToggle(segIndex: number, itemIndex: number) {
+  const seg = segments.value[segIndex];
+  if (!seg || seg.type !== 'todo') return;
+  const item = seg.items[itemIndex];
+  if (!item) return;
   item.checked = !item.checked;
 
   const checks = collectChecks(segments.value);
@@ -110,9 +116,9 @@ function onToggle(segIndex, itemIndex) {
 }
 
 /** 防抖保存：勾选是高频操作，别每次点都打接口 */
-let saveTimer = null;
-function debouncedSave(checks) {
-  clearTimeout(saveTimer);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedSave(checks: boolean[]) {
+  if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
       // ★ 仅更新 checks，不更新 updatedAt、不重算 excerpt
@@ -133,9 +139,9 @@ function goEdit() {
  * 传全部图片地址是为了让用户能在预览器里左右翻；
  * 预览器由系统渲染，相册选出的本机图片在这里一定能正常显示。
  */
-function onPreviewImage(src) {
+function onPreviewImage(src: string) {
   const urls = segments.value
-    .filter((s) => s.type === 'image' && s.src)
+    .filter((s): s is Extract<Segment, { type: 'image' }> => s.type === 'image' && !!s.src)
     .map((s) => s.src);
   if (!urls.length) return;
 
@@ -165,10 +171,10 @@ function onDelete() {
   });
 }
 
-function formatTime(t) {
+function formatTime(t: number) {
   if (!t) return '';
   const d = new Date(t);
-  const pad = (n) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 

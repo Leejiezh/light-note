@@ -21,17 +21,21 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import Icon from '@/components/Icon.vue';
+import type { NoteListItem } from '@/api';
 
-const props = defineProps({
-  note: { type: Object, required: true }
-});
+const props = defineProps<{
+  note: NoteListItem;
+}>();
 
-defineEmits(['open', 'longpress']);
+defineEmits<{
+  (e: 'open', id: string): void;
+  (e: 'longpress', note: NoteListItem): void;
+}>();
 
-const TAG_LABELS = {
+const TAG_LABELS: Record<string, string> = {
   work: '工作',
   design: '设计',
   tech: '技术',

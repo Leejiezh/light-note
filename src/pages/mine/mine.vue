@@ -1,7 +1,25 @@
 <template>
   <view class="page">
+    <!-- ═══════════ 未登录：登录卡 ═══════════ -->
+    <view v-if="!logged && !editing" class="card login" key="login-view">
+      <view class="login-avatar" aria-hidden="true">
+        <Icon name="user" :size="56" color="var(--brand-500)" />
+      </view>
+      <text class="name">未登录</text>
+      <text class="desc">登录后可在多设备同步你的笔记</text>
+      <view
+        class="login-btn touch-target"
+        role="button"
+        :aria-label="loggingIn ? '正在登录' : '微信一键登录'"
+        @tap="doLogin"
+      >
+        <Icon v-if="!loggingIn" name="user" :size="30" color="#ffffff" />
+        <text class="login-btn-text">{{ loggingIn ? '登录中…' : '微信一键登录' }}</text>
+      </view>
+    </view>
+
     <!-- ═══════════ 资料卡：浏览态 ═══════════ -->
-    <view v-if="!editing" class="card profile" key="profile-view">
+    <view v-else-if="!editing" class="card profile" key="profile-view">
       <!-- 头像：渐变底 + 昵称首字符（底色来自用户在编辑态选的预设） -->
       <view class="avatar" :style="avatarStyle" aria-hidden="true">
         <text class="avatar-char">{{ initial }}</text>
@@ -249,15 +267,31 @@
           <Icon name="chevron" :size="36" color="var(--text-disabled)" />
         </view>
       </view>
+
+      <!-- 退出登录：仅登录后显示 -->
+      <view
+        v-if="logged"
+        class="row touch-target"
+        role="button"
+        aria-label="退出登录"
+        @tap="onLogout"
+      >
+        <view class="row-left">
+          <view class="row-icon is-danger" aria-hidden="true">
+            <Icon name="close" :size="36" color="var(--semantic-error)" />
+          </view>
+          <text class="row-label is-danger">退出登录</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import Icon from '@/components/Icon.vue';
-import { getNotes, getTags } from '@/utils/request/index.js';
+import { getNotes, getTags, isLoggedIn, ensureLogin, logout } from '@/api';
 import {
   readProfile,
   writeProfile,
@@ -269,16 +303,51 @@ import {
   NICKNAME_MAX,
   SIGNATURE_MAX,
   EMAIL_MAX
-} from '@/utils/store/profile.js';
+} from '@/utils/store/profile';
+import type { Profile, ProfileDraft, AvatarKey, AvatarPreset } from '@/utils/store/profile';
+import { errorMessage } from '@/utils/errorMessage';
 
 // ---------- 资料（浏览态） ----------
-const profile = ref(readProfile());
+const profile = ref<Profile>(readProfile());
 const editing = ref(false);
 
+// ---------- 登录态 ----------
+const logged = ref(isLoggedIn());
+const loggingIn = ref(false);
+
+/** 显式登录（与启动静默登录共用 ensureLogin 的并发锁，不会重复消费 code） */
+async function doLogin() {
+  if (loggingIn.value) return;
+  loggingIn.value = true;
+  try {
+    await ensureLogin();
+    logged.value = true;
+    uni.showToast({ title: '登录成功', icon: 'success' });
+    load();
+  } catch (e) {
+    uni.showToast({ title: errorMessage(e, '登录失败，请稍后再试'), icon: 'none' });
+  } finally {
+    loggingIn.value = false;
+  }
+}
+
+function onLogout() {
+  uni.showModal({
+    title: '退出登录',
+    content: '退出后云端笔记将不再同步，确定退出？',
+    success: ({ confirm }) => {
+      if (!confirm) return;
+      logout();
+      logged.value = false;
+      uni.showToast({ title: '已退出登录', icon: 'none' });
+    }
+  });
+}
+
 /** 编辑态草稿：进编辑时拷贝一份，取消即丢弃，保存才落盘 */
-const draft = ref({});
+const draft = ref<Profile | ProfileDraft>({});
 const focused = ref('');
-const errors = ref({});
+const errors = ref<Record<string, string>>({});
 const saving = ref(false);
 
 const initial = computed(() => initialOf(profile.value.nickname));
@@ -290,7 +359,7 @@ const draftInitial = computed(() => initialOf(draft.value.nickname));
  * 所以以内联样式写入 —— 这是 AGENTS.md「不硬编码颜色」的刻意例外：
  * 它们是内容（身份色），不是主题表面色。
  */
-function avatarStyleOf(key) {
+function avatarStyleOf(key: AvatarKey | undefined) {
   const p = getAvatar(key);
   return {
     background: `linear-gradient(135deg, ${p.from}, ${p.to})`,
@@ -298,10 +367,10 @@ function avatarStyleOf(key) {
   };
 }
 const avatarStyle = computed(() => avatarStyleOf(profile.value.avatar));
-const draftAvatarStyle = computed(() => avatarStyleOf(draft.value.avatar));
+const draftAvatarStyle = computed(() => avatarStyleOf(draft.value.avatar as AvatarKey));
 
 /** 色块选中态外圈：内圈用页面卡片底色隔开，外圈用同色 */
-function swatchStyle(p) {
+function swatchStyle(p: AvatarPreset) {
   if (draft.value.avatar !== p.key) {
     return { background: `linear-gradient(135deg, ${p.from}, ${p.to})` };
   }
@@ -323,24 +392,24 @@ function cancelEdit() {
   editing.value = false;
 }
 
-function clearError(field) {
+function clearError(field: 'nickname' | 'signature' | 'email' | 'location') {
   if (errors.value[field]) {
     errors.value = { ...errors.value, [field]: '' };
   }
 }
 
 /** 计数是否到达上限（到达后计数变警示色） */
-function countAtMax(key) {
+function countAtMax(key: 'nickname' | 'signature') {
   const max = { nickname: NICKNAME_MAX, signature: SIGNATURE_MAX }[key];
   return max ? charCount(draft.value[key]) >= max : false;
 }
 
-async function save() {
+function save() {
   if (saving.value) return;
 
   const res = validateProfile(draft.value);
-  if (!res.ok) {
-    errors.value = { [res.field]: res.message };
+  if (!res.ok || !res.profile) {
+    errors.value = { [res.field || '']: res.message || '' };
     uni.showToast({ title: res.message, icon: 'none' });
     return;
   }
@@ -351,7 +420,7 @@ async function save() {
     editing.value = false;
     uni.showToast({ title: '资料已更新', icon: 'success' });
   } catch (e) {
-    uni.showToast({ title: e.message || '保存失败', icon: 'none' });
+    uni.showToast({ title: errorMessage(e, '保存失败'), icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -359,7 +428,7 @@ async function save() {
 
 // ---------- 统计（沿用原有逻辑） ----------
 const stats = ref({ total: 0, done: 0, tags: 0 });
-const theme = ref(uni.getStorageSync('theme') || 'light');
+const theme = ref<string>(String(uni.getStorageSync('theme') || 'light'));
 const themeLabel = computed(() => (theme.value === 'dark' ? '深色' : '浅色'));
 
 async function load() {
@@ -409,6 +478,8 @@ onShow(() => {
   load();
   // 回到页面时重读一次，防止其他入口改过存储（目前只有本页写，但读一次更稳）
   if (!editing.value) profile.value = readProfile();
+  // 登录态可能被启动静默登录 / 401 自动重登改变，同步一次
+  logged.value = isLoggedIn();
 });
 </script>
 
@@ -428,7 +499,8 @@ onShow(() => {
 }
 
 /* 卡片进场：只在 transform/opacity 上做动效（令牌注释的硬约束） */
-.profile {
+.profile,
+.login {
   animation: card-rise $duration-base $ease-out;
 }
 
@@ -441,6 +513,48 @@ onShow(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ═══════════ 未登录：登录卡 ═══════════ */
+.login {
+  padding: $space-8 $space-4 $space-6;
+  text-align: center;
+}
+
+/* 虚线描边头像位：与登录后的渐变头像同尺寸呼应 */
+.login-avatar {
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: $radius-full;
+  margin: 0 auto $space-3;
+  border: 3rpx dashed var(--brand-500);
+  background: var(--brand-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 主操作：品牌色实心胶囊（复用编辑态保存按钮的语言） */
+.login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-1;
+  height: 88rpx;
+  border-radius: $radius-full;
+  background: var(--brand-500);
+  margin-top: $space-2;
+  transition: transform $duration-fast $ease-out;
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.login-btn-text {
+  font-size: $text-base;
+  font-weight: $font-medium;
+  color: #ffffff;
 }
 
 /*
@@ -773,6 +887,15 @@ onShow(() => {
 .row-label {
   font-size: $text-base;
   color: var(--text-primary);
+
+  /* 危险操作（退出登录）：警示色文字 + 中性底图标 */
+  &.is-danger {
+    color: var(--semantic-error);
+  }
+}
+
+.row-icon.is-danger {
+  background: var(--bg-muted);
 }
 
 .row-right {

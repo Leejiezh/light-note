@@ -8,9 +8,10 @@
 //   待办段用原生组件渲染，其余段交给 rich-text。
 // ============================================================
 
-import { renderMd } from './block.js';
-import { isSafeUrl } from './inline.js';
-import { TODO_PATTERN, IMAGE_LINE_PATTERN } from './rules.js';
+import { renderMd } from './block';
+import { isSafeUrl } from './inline';
+import { TODO_PATTERN, IMAGE_LINE_PATTERN } from './rules';
+import type { Segment, TodoItem } from './types';
 
 /**
  * 把 body 切成段数组
@@ -19,21 +20,16 @@ import { TODO_PATTERN, IMAGE_LINE_PATTERN } from './rules.js';
  *   checks[i] 是全篇待办项按顺序索引的，
  *   若误用段内局部索引，第二段待办会去取第一段的 checks，导致勾选错位。
  *
- * 段类型：
- * - `richtext` 普通富文本
- * - `todo`     待办项（原生组件，事件可挂）
- * - `image`    ★ 独占一行的图片（原生 <image>，对「本机路径」兼容性最好）
- *
- * @param {string} body 笔记正文（Markdown）
- * @param {boolean[]} checks 勾选状态数组（与全篇待办项下标一一对应）
- * @returns {Array<{type:'richtext'|'todo'|'image', html?:string, items?:Array, src?:string, alt?:string}>}
+ * @param body   笔记正文（Markdown）
+ * @param checks 勾选状态数组（与全篇待办项下标一一对应）
  */
-export function parseToSegments(body, checks = []) {
+export function parseToSegments(body: unknown, checks: readonly boolean[] | null = []): Segment[] {
   const lines = String(body || '').split('\n');
-  const segments = [];
-  let buf = [];           // 累积的普通行
-  let todoBuf = [];       // 累积的待办项
-  let globalTodoIdx = 0;  // ★ 全篇待办计数，对应 checks 下标
+  const segments: Segment[] = [];
+  let buf: string[] = [];        // 累积的普通行
+  let todoBuf: TodoItem[] = [];  // 累积的待办项
+  let globalTodoIdx = 0;         // ★ 全篇待办计数，对应 checks 下标
+  const cks = checks ?? [];
 
   function flushRich() {
     if (buf.length) {
@@ -60,7 +56,7 @@ export function parseToSegments(body, checks = []) {
       //    否则每一项都会变成独立的一段
       todoBuf.push({
         text: m[2],
-        checked: checks[globalTodoIdx] === true  // ★ 用全篇序号取状态
+        checked: cks[globalTodoIdx] === true  // ★ 用全篇序号取状态
       });
       globalTodoIdx++;
       continue;
@@ -90,8 +86,8 @@ export function parseToSegments(body, checks = []) {
  * 把分段中的 items 拍平回全篇 checks 顺序
  * 用于勾选后回写 checks 数组
  */
-export function collectChecks(segments) {
-  const out = [];
+export function collectChecks(segments: readonly Segment[]): boolean[] {
+  const out: boolean[] = [];
   segments.forEach((seg) => {
     if (seg.type === 'todo') {
       seg.items.forEach((it) => out.push(!!it.checked));
@@ -104,7 +100,7 @@ export function collectChecks(segments) {
  * 统计正文中的待办项数量
  * 对应 data-api-contract.md §2.1 不变式 1
  */
-export function countTodos(src) {
+export function countTodos(src: unknown): number {
   return (String(src || '').match(/^[-*]\s\[[ xX]\]/gm) || []).length;
 }
 
@@ -112,9 +108,9 @@ export function countTodos(src) {
  * 对齐 checks 长度（不变式 1：length 恒等于待办项数量）
  * 仅在正文未变更时使用 —— 沿用已有勾选状态
  */
-export function normalizeChecks(src, checks) {
+export function normalizeChecks(src: string, checks?: readonly boolean[] | null): boolean[] {
   const n = countTodos(src);
-  const out = new Array(n).fill(false);
+  const out = new Array<boolean>(n).fill(false);
   if (Array.isArray(checks)) {
     for (let i = 0; i < Math.min(n, checks.length); i++) {
       out[i] = checks[i] === true;
@@ -130,6 +126,6 @@ export function normalizeChecks(src, checks) {
  *   checks 按位置索引对齐，正文结构一变索引即失效。
  *   若沿用旧数组，会出现「用户没勾过的项自己变勾」。
  */
-export function resetChecks(src) {
-  return new Array(countTodos(src)).fill(false);
+export function resetChecks(src: string): boolean[] {
+  return new Array<boolean>(countTodos(src)).fill(false);
 }

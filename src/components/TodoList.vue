@@ -6,7 +6,7 @@
       class="todo-item"
       :class="{ 'is-checked-row': todo.checked }"
       role="checkbox"
-      :aria-checked="String(todo.checked)"
+      :aria-checked="todo.checked"
       :aria-label="`${todo.text}，${todo.checked ? '已完成' : '未完成'}`"
       @tap="$emit('toggle', ti)"
     >
@@ -18,7 +18,9 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import type { TodoItem } from '@/utils/markdown';
+
 /**
  * 待办列表组件
  * 对应 uniapp-adaptation.md §3.3
@@ -27,12 +29,17 @@
  *    微信小程序 rich-text 内部屏蔽所有节点事件，
  *    放进去就无法点击勾选。必须用原生组件。
  */
-defineProps({
-  /** [{ text: string, checked: boolean }] */
-  items: { type: Array, default: () => [] }
+withDefaults(defineProps<{
+  /** 待办项列表（text + checked），来自 parseToSegments 的 todo 段 */
+  items?: TodoItem[];
+}>(), {
+  items: () => []
 });
 
-defineEmits(['toggle']);
+defineEmits<{
+  /** 点按第 ti 项请求翻转其勾选状态 */
+  (e: 'toggle', ti: number): void;
+}>();
 </script>
 
 <style lang="scss" scoped>

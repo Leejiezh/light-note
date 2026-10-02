@@ -17,7 +17,7 @@
   <text class="ln-icon" :style="styleObj" aria-hidden="true">{{ glyphChar }}</text>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 
 /**
@@ -27,7 +27,7 @@ import { computed } from 'vue';
  *    字形来源是 src/static/fonts/lnicon.ttf（Remixicon 子集）。
  *    新增图标三步：子集字体加码点 → iconfont.scss 注释同步 → 这里加映射。
  */
-const ICONS = {
+const ICONS: Record<string, number> = {
   // 主导航语义（tabBar 用 png，此处用于页面内呼应）
   note: 0xf19b,
   tag: 0xf023,
@@ -54,21 +54,21 @@ const ICONS = {
   pin: 0xf039
 };
 
-const props = defineProps({
+const props = defineProps<{
   /** 图标名（见上面 ICONS 的键） */
-  name: { type: String, required: true },
+  name: string;
   /**
    * 尺寸：传数字按 rpx 处理；也可直接传 '32rpx' / '16px'
    * 默认 32rpx（= 16px），与 $text-base 一致
    */
-  size: { type: [Number, String], default: 32 },
+  size?: number | string;
   /**
    * 颜色：默认「继承父级文字色」（currentColor 继承不受样式隔离影响）。
    * 需要指定时建议传 CSS 变量（如 'var(--text-tertiary)'），
    * 以内联样式写入，两端都可靠。
    */
-  color: { type: String, default: '' }
-});
+  color?: string;
+}>();
 
 const glyphChar = computed(() => {
   const cp = ICONS[props.name];
@@ -79,11 +79,11 @@ const glyphChar = computed(() => {
   return String.fromCodePoint(cp);
 });
 
-const styleObj = computed(() => {
-  const s = {
+const styleObj = computed<Record<string, string>>(() => {
+  const s: Record<string, string> = {
     // 内联写死字体族：样式隔离下全局类不可靠，内联最稳
     fontFamily: 'lnicon',
-    fontSize: typeof props.size === 'number' ? `${props.size}rpx` : props.size
+    fontSize: typeof props.size === 'number' ? `${props.size}rpx` : props.size || '32rpx'
   };
   if (props.color) s.color = props.color;
   return s;

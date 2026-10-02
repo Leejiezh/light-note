@@ -15,15 +15,22 @@
   </view>
 </template>
 
-<script setup>
-defineProps({
-  emoji: { type: String, default: '📝' },
-  title: { type: String, default: '还没有内容' },
-  desc: { type: String, default: '' },
-  actionText: { type: String, default: '' }
+<script setup lang="ts">
+withDefaults(defineProps<{
+  emoji?: string;
+  title?: string;
+  desc?: string;
+  actionText?: string;
+}>(), {
+  emoji: '📝',
+  title: '还没有内容',
+  desc: '',
+  actionText: ''
 });
 
-defineEmits(['action']);
+defineEmits<{
+  (e: 'action'): void;
+}>();
 </script>
 
 <style lang="scss" scoped>

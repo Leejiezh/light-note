@@ -40,7 +40,7 @@ export const FENCE_PATTERN = /^```(\w*)$/;
  * 链接协议白名单 —— XSS 防护
  * 只允许这三种协议，其余（javascript: / data:text 等）一律拦截
  */
-export const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:'];
+export const ALLOWED_PROTOCOLS: readonly string[] = ['http:', 'https:', 'mailto:'];
 
 /**
  * 图片额外允许的来源协议 —— ★ 只给「图片」用，链接仍然只认上面的白名单
@@ -51,13 +51,13 @@ export const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:'];
  * 安全性：这两种协议只能指向「本机已有文件」，无法像 javascript: / data:text
  * 那样携带可执行内容，所以放开它们不会削弱链接那边的 XSS 防护。
  */
-export const MEDIA_PROTOCOLS = ['wxfile:', 'blob:'];
+export const MEDIA_PROTOCOLS: readonly string[] = ['wxfile:', 'blob:'];
 
 /**
  * 行内语法的标记字符（供摘要剔除使用）
  * 与 parseInline 的处理范围保持一致
  */
-export const INLINE_MARKERS = {
+export const INLINE_MARKERS: Record<string, RegExp> = {
   code: /`([^`\n]+)`/g,
   bold: /\*\*([^*\n]+)\*\*/g,
   italic: /(^|[^*])\*([^*\n]+)\*(?!\*)/g,
@@ -73,7 +73,7 @@ export const INLINE_MARKERS = {
  * 注意：rich-text 白名单比 editor 宽松，
  *       pre / code / blockquote 均可直接使用，无需降级模拟。
  */
-export const BLOCK_TAG_MAP = {
+export const BLOCK_TAG_MAP: Record<number, string> = {
   1: 'h1',
   2: 'h2',
   3: 'h3',
@@ -91,7 +91,7 @@ export const BLOCK_TAG_MAP = {
  * 交互是「开关式」：点一下开启（按钮高亮），再点一下关闭，
  * 关闭时才把「开启期间输入的文字」包上标记 —— 详见 editor.vue 的 toggleInlineFormat。
  */
-export const INLINE_FORMATS = {
+export const INLINE_FORMATS: Record<'b' | 'i' | 'del' | 'code', string> = {
   b: '**',
   i: '*',
   del: '~~',
@@ -104,13 +104,13 @@ export const INLINE_FORMATS = {
  *
  * ★ 这里没有 image：图片按钮不走「插模板」，而是调起本机相册，
  *   把用户选中的真实文件路径插进来（见 editor.vue 的 pickImage
- *   与 format.js 的 insertImageBlock）。
+ *   与 format.ts 的 insertImageBlock）。
  */
-export const TOOLBAR_SNIPPETS = {
-  h:     '\n## 小标题\n',
-  ul:    '\n- 列表项\n',
-  ol:    '\n1. 列表项\n',
-  todo:  '\n- [ ] 待办事项\n',
+export const TOOLBAR_SNIPPETS: Record<string, string> = {
+  h: '\n## 小标题\n',
+  ul: '\n- 列表项\n',
+  ol: '\n1. 列表项\n',
+  todo: '\n- [ ] 待办事项\n',
   quote: '\n> 引用内容\n',
-  hr:    '\n---\n'
+  hr: '\n---\n'
 };

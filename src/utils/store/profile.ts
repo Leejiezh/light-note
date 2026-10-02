@@ -21,6 +21,18 @@ export const SIGNATURE_MAX = 40;
 /** 邮箱长度上限（RFC 5321 的本地部分+域名总长上限 254，这里取宽松值） */
 export const EMAIL_MAX = 60;
 
+/** 底色预设 key 的联合类型 */
+export type AvatarKey = 'violet' | 'ocean' | 'mint' | 'sunset' | 'rose' | 'graphite';
+
+/** 头像底色预设 */
+export interface AvatarPreset {
+  key: AvatarKey;
+  label: string;
+  from: string;
+  to: string;
+  shadow: string;
+}
+
 /**
  * 头像底色预设
  *
@@ -30,7 +42,7 @@ export const EMAIL_MAX = 60;
  *   反而更糟。所以沿用项目既有的「渐变底 + 昵称首字符」视觉，
  *   只让用户挑底色 —— 任何设备上都稳定，且同样有个人辨识度。
  */
-export const AVATAR_PRESETS = [
+export const AVATAR_PRESETS: AvatarPreset[] = [
   { key: 'violet', label: '紫罗兰', from: '#A78BFA', to: '#6D28D9', shadow: 'rgba(124, 58, 237, 0.30)' },
   { key: 'ocean', label: '深海蓝', from: '#7DB8F0', to: '#2563EB', shadow: 'rgba(37, 99, 235, 0.30)' },
   { key: 'mint', label: '薄荷绿', from: '#5EEAD4', to: '#0D9488', shadow: 'rgba(13, 148, 136, 0.30)' },
@@ -39,8 +51,20 @@ export const AVATAR_PRESETS = [
   { key: 'graphite', label: '石墨黑', from: '#6B7280', to: '#1F2937', shadow: 'rgba(31, 41, 55, 0.35)' }
 ];
 
+/** 个人资料（归一化后的规范形态） */
+export interface Profile {
+  nickname: string;
+  signature: string;
+  avatar: AvatarKey;
+  email: string;
+  location: string;
+}
+
+/** 资料草稿（用户输入 / 存储读出的脏数据，字段可能缺失或非法） */
+export type ProfileDraft = Partial<Record<keyof Profile, unknown>>;
+
 /** 默认资料 */
-export const DEFAULT_PROFILE = {
+export const DEFAULT_PROFILE: Profile = {
   nickname: '轻记用户',
   signature: '记录每一个值得记下的想法',
   avatar: 'violet',
@@ -49,7 +73,7 @@ export const DEFAULT_PROFILE = {
 };
 
 /** 取头像预设（容错：未知 key 回落第一个） */
-export function getAvatar(key) {
+export function getAvatar(key: unknown): AvatarPreset {
   return AVATAR_PRESETS.find((p) => p.key === key) || AVATAR_PRESETS[0];
 }
 
@@ -59,7 +83,7 @@ export function getAvatar(key) {
  * 用 Array.from 而不是 s[0]：中文/emoji 都是多码元字符，
  * s[0] 可能切出半个代理对（显示成「？」）。Array.from 按码点切分。
  */
-export function initialOf(nickname) {
+export function initialOf(nickname: unknown): string {
   const s = String(nickname || '').trim();
   if (!s) return '记';
   return Array.from(s)[0];
@@ -72,7 +96,7 @@ export function initialOf(nickname) {
  * 小程序端会把这两处文本渲染成多行，把卡片高度顶坏；
  * 同时连续空格会撑出横向溢出。统一压成单行。
  */
-export function sanitizeLine(value) {
+export function sanitizeLine(value: unknown): string {
   return String(value ?? '')
     .replace(/[\r\n\t]+/g, ' ')   // 换行/制表 → 空格
     .replace(/ {2,}/g, ' ')       // 连续空格压成一个
@@ -86,7 +110,7 @@ export function sanitizeLine(value) {
  * 严格正则（RFC 5322）会把 user+tag@sub.domain.co 这类合法地址误杀，
  * 而邮箱在这里只是展示信息，不做投递，宽松更合适。
  */
-export function isValidEmail(value) {
+export function isValidEmail(value: unknown): boolean {
   const v = sanitizeLine(value);
   if (!v) return true;   // 留空 = 未填写，允许
   return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v);
@@ -95,7 +119,7 @@ export function isValidEmail(value) {
 /**
  * 计算字符数（按码点，与 maxlength 的语义对齐）
  */
-export function charCount(value) {
+export function charCount(value: unknown): number {
   return Array.from(String(value ?? '')).length;
 }
 
@@ -104,22 +128,22 @@ export function charCount(value) {
  * 从存储读到的旧数据、用户手输的脏数据都过这一道，组件层就不用再防御。
  * 邮箱在此处做格式校验：非法值直接清空（展示层不出现明显坏掉的地址）。
  */
-export function normalizeProfile(raw) {
-  const src = raw && typeof raw === 'object' ? raw : {};
+export function normalizeProfile(raw: unknown): Profile {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as ProfileDraft;
   const nickname = sanitizeLine(src.nickname).slice(0, NICKNAME_MAX);
   const emailRaw = sanitizeLine(src.email).slice(0, EMAIL_MAX);
   return {
     nickname: nickname || DEFAULT_PROFILE.nickname,
     signature: sanitizeLine(src.signature).slice(0, SIGNATURE_MAX),
-    avatar: AVATAR_PRESETS.some((p) => p.key === src.avatar) ? src.avatar : DEFAULT_PROFILE.avatar,
+    avatar: AVATAR_PRESETS.some((p) => p.key === src.avatar) ? (src.avatar as AvatarKey) : DEFAULT_PROFILE.avatar,
     email: isValidEmail(emailRaw) ? emailRaw : '',
     location: sanitizeLine(src.location).slice(0, 30)
   };
 }
 
 /** 读取资料（同步，任何时候都能拿到可用值） */
-export function readProfile() {
-  let raw = null;
+export function readProfile(): Profile {
+  let raw: unknown;
   try {
     raw = uni.getStorageSync(PROFILE_KEY);
   } catch (e) {
@@ -130,26 +154,33 @@ export function readProfile() {
 }
 
 /** 写入资料（先归一化，保证存储里永远是干净的） */
-export function writeProfile(profile) {
+export function writeProfile(profile: ProfileDraft): Profile {
   const next = normalizeProfile(profile);
   try {
     uni.setStorageSync(PROFILE_KEY, next);
   } catch (e) {
     // 写失败时把错误抛给调用方，让界面能提示「保存失败」
+    // eslint-disable-next-line preserve-caught-error -- 小程序低版本基础库不保证支持 Error 的 cause 选项
     throw new Error('保存失败，请重试');
   }
   return next;
 }
 
-/**
- * 校验待保存的资料
- * @returns {{ ok: boolean, message?: string, field?: string, profile?: object }}
- */
-export function validateProfile(draft) {
-  const nickname = sanitizeLine(draft?.nickname);
-  const signature = sanitizeLine(draft?.signature);
-  const email = sanitizeLine(draft?.email);
-  const location = sanitizeLine(draft?.location);
+/** validateProfile 的校验结果 */
+export interface ValidateResult {
+  ok: boolean;
+  message?: string;
+  field?: 'nickname' | 'signature' | 'email' | 'location';
+  profile?: Profile;
+}
+
+/** 校验待保存的资料 */
+export function validateProfile(draft: ProfileDraft | null | undefined): ValidateResult {
+  const d: ProfileDraft = draft && typeof draft === 'object' ? draft : {};
+  const nickname = sanitizeLine(d.nickname);
+  const signature = sanitizeLine(d.signature);
+  const email = sanitizeLine(d.email);
+  const location = sanitizeLine(d.location);
 
   if (!nickname) {
     return { ok: false, field: 'nickname', message: '昵称不能为空' };
@@ -177,7 +208,8 @@ export function validateProfile(draft) {
       signature,
       email,
       location,
-      avatar: draft?.avatar
+      // avatar 直接透传，合法性兜底由 writeProfile → normalizeProfile 负责（与原实现一致）
+      avatar: getAvatar(d.avatar).key
     }
   };
 }

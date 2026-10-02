@@ -58,19 +58,21 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import NoteCard from '@/components/NoteCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
-import { getNotes } from '@/utils/request/index.js';
+import { getNotes } from '@/api';
+import type { NoteListItem } from '@/api';
+import { errorMessage } from '@/utils/errorMessage';
 
-const notes = ref([]);
+const notes = ref<NoteListItem[]>([]);
 const loading = ref(false);
 const activeTag = ref('all');
 
-const TAG_LABELS = { all: '全部', work: '工作', design: '设计', tech: '技术', life: '生活' };
+const TAG_LABELS: Record<string, string> = { all: '全部', work: '工作', design: '设计', tech: '技术', life: '生活' };
 
 const tagOptions = computed(() =>
   Object.entries(TAG_LABELS).map(([value, label]) => ({ value, label }))
@@ -82,19 +84,19 @@ async function load() {
     const res = await getNotes({ tag: activeTag.value });
     notes.value = res.list || [];
   } catch (e) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' });
+    uni.showToast({ title: errorMessage(e, '加载失败'), icon: 'none' });
   } finally {
     loading.value = false;
   }
 }
 
-function switchTag(v) {
+function switchTag(v: string) {
   if (activeTag.value === v) return;
   activeTag.value = v;
   load();
 }
 
-function goDetail(id) {
+function goDetail(id: string) {
   uni.navigateTo({ url: `/pages/detail/detail?id=${id}` });
 }
 
@@ -102,7 +104,7 @@ function goCreate() {
   uni.navigateTo({ url: '/pages/editor/editor' });
 }
 
-function onLongPress(note) {
+function onLongPress(note: NoteListItem) {
   uni.showActionSheet({
     itemList: ['删除笔记'],
     success: ({ tapIndex }) => {
@@ -111,7 +113,7 @@ function onLongPress(note) {
   });
 }
 
-function confirmDelete(note) {
+function confirmDelete(note: NoteListItem) {
   uni.showModal({
     title: '删除笔记',
     content: `「${note.title || '无标题'}」将被移入回收站，30 天后永久清除。`,

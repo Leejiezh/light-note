@@ -2,14 +2,14 @@
 // 轻记 · 摘要生成 extractExcerpt
 // 对应 data-api-contract.md §四
 //
-// ★ 硬性要求：本函数必须与渲染解析器共用 rules.js 的语法规则常量，
+// ★ 硬性要求：本函数必须与渲染解析器共用 rules.ts 的语法规则常量，
 //   否则会出现「正文渲染认得某语法，但摘要里漏着 ** 星号」的不一致。
 // ============================================================
 
 import {
   TODO_PATTERN, HEADING_PATTERN, QUOTE_PATTERN,
-  UL_PATTERN, OL_PATTERN, HR_PATTERN, FENCE_PATTERN
-} from './rules.js';
+  UL_PATTERN, OL_PATTERN, HR_PATTERN
+} from './rules';
 
 /**
  * 把正文转成纯文本摘要
@@ -23,11 +23,10 @@ import {
  *   6. 合并连续空白与换行
  *   7. 截断到 maxLen，超出加 …
  *
- * @param {string} body    Markdown 正文
- * @param {number} maxLen  最大长度，默认 60
- * @returns {string}
+ * @param body   Markdown 正文
+ * @param maxLen 最大长度，默认 60
  */
-export function extractExcerpt(body, maxLen = 60) {
+export function extractExcerpt(body: unknown, maxLen = 60): string {
   let s = String(body || '');
 
   // 1. 剔除代码块围栏（保留内容，去掉 ``` 标记）
@@ -38,7 +37,7 @@ export function extractExcerpt(body, maxLen = 60) {
   s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');    // 链接 → 链接文字
 
   const lines = s.split('\n');
-  const kept = [];
+  const kept: string[] = [];
 
   for (const raw of lines) {
     let line = raw;

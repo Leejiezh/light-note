@@ -71,15 +71,17 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
-import { search } from '@/utils/request/index.js';
+import { search } from '@/api';
+import type { SearchHit } from '@/api';
+import { errorMessage } from '@/utils/errorMessage';
 
 const keyword = ref('');
-const results = ref([]);
+const results = ref<SearchHit[]>([]);
 const total = ref(0);
 const searched = ref(false);
 const loading = ref(false);
@@ -90,9 +92,9 @@ onLoad(() => {
 });
 
 /** 防抖：输入时自动搜索 */
-let timer = null;
+let timer: ReturnType<typeof setTimeout> | null = null;
 function onInput() {
-  clearTimeout(timer);
+  if (timer) clearTimeout(timer);
   if (!keyword.value.trim()) {
     searched.value = false;
     results.value = [];
@@ -112,7 +114,7 @@ async function doSearch() {
     results.value = res.list || [];
     total.value = res.total ?? results.value.length;
   } catch (e) {
-    uni.showToast({ title: e.message || '搜索失败', icon: 'none' });
+    uni.showToast({ title: errorMessage(e, '搜索失败'), icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -124,7 +126,7 @@ function clear() {
   searched.value = false;
 }
 
-function goDetail(id) {
+function goDetail(id: string) {
   uni.navigateTo({ url: `/pages/detail/detail?id=${id}` });
 }
 </script>

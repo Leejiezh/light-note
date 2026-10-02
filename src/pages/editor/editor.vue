@@ -89,7 +89,7 @@
   </view>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import {
@@ -97,12 +97,16 @@ import {
   INLINE_FORMATS,
   wrapRange,
   insertImageBlock,
-  countTodos,
   normalizeChecks,
   resetChecks,
   extractExcerpt
-} from '@/utils/markdown/index.js';
-import { getNote, createNote, updateNote } from '@/utils/request/index.js';
+} from '@/utils/markdown';
+import { getNote, createNote, updateNote } from '@/api';
+import type { Note, NoteDraft } from '@/api';
+import { errorMessage } from '@/utils/errorMessage';
+
+/** 行内格式 key（与 rules.ts 的 INLINE_FORMATS 同源） */
+type FormatKey = keyof typeof INLINE_FORMATS;
 
 const NOTE_ID = ref('');
 const title = ref('');
@@ -110,7 +114,7 @@ const body = ref('');
 const saving = ref(false);
 
 /** 原笔记（编辑态），用于判断正文是否变更 */
-let original = null;
+let original: Note | null = null;
 
 /** ★ 光标位置：小程序无法直接读取，靠 input 事件记录（也是选区能力失效时的降级来源） */
 const cursorPos = ref(-1);
@@ -119,7 +123,7 @@ const cursorPos = ref(-1);
  * ★ 挂起的行内格式（B / I / S / 代码）
  * null = 未开启；开启期间按钮高亮，之后输入的文字在关闭时被一次性包上标记
  */
-const pendingFormat = ref(null);
+const pendingFormat = ref<FormatKey | null>(null);
 
 /** 挂起区间的起点（开启那一刻的光标位置），-1 表示无效 */
 let pendingStart = -1;
@@ -140,7 +144,7 @@ let placing = false;
  * 否则键盘会盖住工具栏和「保存」按钮（连「收起」都点不到）。
  */
 const kbHeight = ref(0);
-let kbHandler = null;
+let kbHandler: ((res: { height?: number }) => void) | null = null;
 
 /**
  * ★ 聚焦开关
@@ -158,6 +162,7 @@ const showToolbar = computed(() => {
   // H5 没有软键盘高度事件，且点击工具栏会让 textarea 失焦，所以保持常驻
   return true;
   // #endif
+  // eslint-disable-next-line no-unreachable -- 上一行的 return 只存在于 H5 条件编译分支，小程序端这里可达
   return focused.value || kbHeight.value > 0;
 });
 
@@ -169,6 +174,7 @@ const editing = computed(() => {
   // #ifdef H5
   return focused.value;
   // #endif
+  // eslint-disable-next-line no-unreachable -- 上一行的 return 只存在于 H5 条件编译分支，小程序端这里可达
   return focused.value || kbHeight.value > 0;
 });
 
@@ -178,7 +184,7 @@ const editing = computed(() => {
  */
 const pageStyle = computed(() => `--kb: ${kbHeight.value}px;`);
 
-const tools = [
+const tools: { key: string; label: string }[] = [
   { key: 'b', label: 'B' },
   { key: 'i', label: 'I' },
   { key: 'del', label: 'S' },
@@ -194,14 +200,14 @@ const tools = [
 
 const canSave = computed(() => !!(title.value.trim() || body.value.trim()));
 
-onLoad(async (query) => {
+onLoad(async (query?: Record<string, string | undefined>) => {
   // ★ 监听键盘高度：配合 textarea 的 adjust-position=false，把底部工具栏顶到键盘上方
   kbHandler = (res) => {
     kbHeight.value = res && res.height ? res.height : 0;
   };
   if (uni.onKeyboardHeightChange) uni.onKeyboardHeightChange(kbHandler);
 
-  if (query.id) {
+  if (query?.id) {
     NOTE_ID.value = query.id;
     try {
       const res = await getNote(query.id);
@@ -223,18 +229,39 @@ onUnload(() => {
 });
 
 /**
+ * uni textarea 的 input 事件
+ * 运行时 detail 一定是 { value, cursor }；类型上继承 Event 并把 detail 放宽为可选，
+ * 是为了让模板 @input 绑定通过 vue-tsc（模板按 DOM Event 签名校验，Event 没有 detail）
+ */
+interface UniTextareaInputEvent extends Event {
+  detail?: { value: string; cursor?: number };
+}
+
+/**
+ * uni textarea 的 focus 事件
+ * 运行时 detail 是 { height }（键盘高度）；类型上并入 DOM FocusEvent 的 detail: number，
+ * 是为了让模板 @focus 绑定通过 vue-tsc。运行时只取对象形态的 height。
+ */
+interface UniTextareaFocusEvent {
+  detail?: number | { height?: number };
+}
+
+/**
  * 记录光标位置
  * ⚠️ 部分安卓机型 e.detail.cursor 可能不准，实机需验证
  */
-function onInput(e) {
+function onInput(e: UniTextareaInputEvent) {
+  // 运行时 detail 恒存在，防御分支仅为满足类型（见上方接口注释）
+  if (!e.detail) return;
   body.value = e.detail.value;
-  cursorPos.value = e.detail.cursor;
+  cursorPos.value = e.detail.cursor ?? -1;
 }
 
 /** 聚焦：focus 事件的 detail 里也带键盘高度，作为 onKeyboardHeightChange 的兜底 */
-function onFocus(e) {
+function onFocus(e: UniTextareaFocusEvent) {
   focused.value = true;
-  const h = e && e.detail && e.detail.height;
+  const d = e.detail;
+  const h = d && typeof d === 'object' ? d.height : undefined;
   if (h) kbHeight.value = h;
 }
 
@@ -276,9 +303,9 @@ function hideKeyboard() {
  * - 图片 → ★ 调起本机相册，插入用户真正选中的那张图
  * - 其余（标题 / 列表 / 引用 …）→ 直接把模板插到光标处
  */
-function onToolTap(key) {
+function onToolTap(key: string) {
   if (key in INLINE_FORMATS) {
-    toggleInlineFormat(key);
+    toggleInlineFormat(key as FormatKey);
     return;
   }
   if (key === 'image') {
@@ -293,7 +320,7 @@ function onToolTap(key) {
  * 若光标位置不可靠，降级为追加到末尾
  * （图片不在这里 —— 见 pickImage）
  */
-function insert(key) {
+function insert(key: string) {
   const snippet = TOOLBAR_SNIPPETS[key];
   if (!snippet) return;
 
@@ -321,7 +348,7 @@ async function pickImage() {
   // 传 false：这是被动失焦，不要复位光标把键盘先弹回来
   closeInlineFormat(false);
 
-  let temp = '';
+  let temp: string;
   try {
     temp = await chooseOneImage();
   } catch (err) {
@@ -331,7 +358,7 @@ async function pickImage() {
   if (!temp) return;
 
   uni.showLoading({ title: '处理中…', mask: true });
-  let path = temp;
+  let path: string;
   try {
     path = await persistImage(temp);
   } catch (e) {
@@ -351,9 +378,9 @@ async function pickImage() {
  * 建议改用 chooseMedia。但 chooseMedia 不能保证小程序以外的平台
  * （H5 预览）有实现，所以只在微信小程序里用它，其余平台继续用 chooseImage。
  */
-function chooseOneImage() {
+function chooseOneImage(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const done = (p) => (p ? resolve(p) : reject(new Error('未取到图片')));
+    const done = (p: string) => (p ? resolve(p) : reject(new Error('未取到图片')));
 
     // #ifdef MP-WEIXIN
     if (typeof wx !== 'undefined' && typeof wx.chooseMedia === 'function') {
@@ -391,12 +418,13 @@ function chooseOneImage() {
  *
  * H5 没有这个接口（chooseImage 给的是 blob: 地址，当前页面会话内可用），直接返回。
  */
-function persistImage(tempFilePath) {
+function persistImage(tempFilePath: string): Promise<string> {
   // #ifdef H5
   return Promise.resolve(tempFilePath);
   // #endif
 
   // #ifndef H5
+  // eslint-disable-next-line no-unreachable -- 上一行的 return 只存在于 H5 条件编译分支，小程序端这里可达
   return new Promise((resolve) => {
     const fs = typeof wx !== 'undefined' && wx.getFileSystemManager
       ? wx.getFileSystemManager()
@@ -421,7 +449,7 @@ function persistImage(tempFilePath) {
 }
 
 /** 把图片 Markdown 插到光标处（独占一行，详见 insertImageBlock） */
-function insertImage(src) {
+function insertImage(src: string) {
   const pos = cursorPos.value < 0 ? body.value.length : cursorPos.value;
   const res = insertImageBlock(body.value, pos, src);
   if (!res) return;
@@ -432,8 +460,8 @@ function insertImage(src) {
 }
 
 /** 相册出错：区分「用户主动取消」和「权限被拒」，其余归为普通失败 */
-function onPickFail(err) {
-  const msg = String((err && (err.errMsg || err.message)) || '');
+function onPickFail(err: unknown) {
+  const msg = errorMessage(err, '');
 
   // 取消是正常操作，不要弹任何东西
   if (/cancel/i.test(msg)) return;
@@ -447,7 +475,7 @@ function onPickFail(err) {
       success: ({ confirm }) => {
         if (confirm && typeof uni.openSetting === 'function') {
           try {
-            uni.openSetting();
+            uni.openSetting({});
           } catch (e) {
             /* 部分平台没有该接口，忽略 */
           }
@@ -470,7 +498,7 @@ function onPickFail(err) {
  * 重点在 ②：全程不出现 `**加粗文字**` 这类模板文字，
  * 用户看到的反馈就是「按钮亮着」，关掉时标记才落进正文。
  */
-async function toggleInlineFormat(key) {
+async function toggleInlineFormat(key: FormatKey) {
   // 再点同一个 = 关闭
   if (pendingFormat.value === key) {
     closeInlineFormat();
@@ -508,7 +536,7 @@ async function toggleInlineFormat(key) {
  * 这里用同步的 cursorPos（每次 input 都会更新），不再问一次系统 ——
  * onSave / hideKeyboard 需要在同一帧内拿到结果。
  *
- * @param {boolean} reposition 是否把光标移回标记之后（默认 true）。
+ * @param reposition 是否把光标移回标记之后（默认 true）。
  *   ★ 只有「用户主动关掉格式、要继续输入」时才为 true。
  *   「收起键盘 / 失焦 / 保存」必须传 false —— 否则光标复位会重新 focus，
  *   键盘会自己弹回来，把「收起」这个动作直接抵掉。
@@ -535,9 +563,9 @@ function closeInlineFormat(reposition = true) {
 /**
  * 给 [start, end) 包上标记，返回「右标记之后」的光标位置
  * 区间为空时返回 null，由调用方决定怎么降级（当前是「什么都不做」）
- * 具体区间数学在 utils/markdown/format.js，有单测覆盖
+ * 具体区间数学在 utils/markdown/format.ts，有单测覆盖
  */
-function applyMark(start, end, mark) {
+function applyMark(start: number, end: number, mark: string): number | null {
   const res = wrapRange(body.value, start, end, mark);
   if (!res) return null;
 
@@ -556,7 +584,7 @@ function applyMark(start, end, mark) {
  * 取不到时（低版本 / 部分机型已知会 fail）降级为「已知光标位置」：
  * 此时「选中文字加粗」失效，但「后续输入加粗」仍然可用。
  */
-function readSelection() {
+function readSelection(): Promise<{ start: number; end: number }> {
   return new Promise((resolve) => {
     // #ifdef MP-WEIXIN
     if (typeof wx !== 'undefined' && typeof wx.getSelectedTextRange === 'function') {
@@ -594,7 +622,7 @@ function fallbackSelection() {
  * （cursor 只在 focus 时生效）。代价是键盘会重弹一次，所以只在写入标记之后调用，
  * 不在输入过程中调用。真机表现需验证（见 RUNNING.md）。
  */
-function placeCaret(pos) {
+function placeCaret(pos: number) {
   caret.value = pos;
   placing = true;
   wantFocus.value = false;
@@ -625,7 +653,7 @@ async function onSave() {
   try {
     const bodyChanged = original ? original.body !== body.value : true;
 
-    let checks;
+    let checks: boolean[];
     if (bodyChanged) {
       // ★ 正文变了 → 重置（否则旧勾选按位置错位到新待办项上）
       checks = resetChecks(body.value);
@@ -634,7 +662,7 @@ async function onSave() {
       checks = normalizeChecks(body.value, original?.checks || []);
     }
 
-    const payload = {
+    const payload: NoteDraft = {
       title: title.value.trim(),
       body: body.value,
       tag: original?.tag || 'all',
@@ -652,7 +680,7 @@ async function onSave() {
     uni.showToast({ title: '已保存', icon: 'success' });
     setTimeout(() => uni.navigateBack(), 500);
   } catch (e) {
-    uni.showToast({ title: e.message || '保存失败', icon: 'none' });
+    uni.showToast({ title: errorMessage(e, '保存失败'), icon: 'none' });
   } finally {
     saving.value = false;
   }

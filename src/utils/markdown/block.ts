@@ -7,30 +7,30 @@
 //    pre / code / blockquote / table 均可直接使用，无需降级模拟。
 // ============================================================
 
-import { parseInline } from './inline.js';
+import { parseInline } from './inline';
+import type { RenderOptions } from './types';
 import {
   TODO_PATTERN, HEADING_PATTERN, QUOTE_PATTERN, UL_PATTERN,
   OL_PATTERN, HR_PATTERN, FENCE_PATTERN, BLOCK_TAG_MAP
-} from './rules.js';
+} from './rules';
 
 /**
  * 渲染 Markdown 为 rich-text 支持的 HTML
- * @param {string} src  Markdown 正文
- * @param {object} opts
- * @param {boolean} opts.skipTodo 是否跳过待办行（分段渲染时，待办由原生组件渲染）
- * @returns {string} HTML 字符串
+ * @param src  Markdown 正文
+ * @param opts skipTodo 为 true 时跳过待办行（分段渲染时，待办由原生组件渲染）
+ * @returns HTML 字符串
  */
-export function renderMd(src, opts = {}) {
+export function renderMd(src: unknown, opts: RenderOptions = {}): string {
   const { skipTodo = false } = opts;
   const lines = String(src || '').split('\n');
-  const out = [];
+  const out: string[] = [];
 
-  let i = 0;
-  let inCode = false;      // 是否在代码块内
+  let i: number;
+  let inCode = false;        // 是否在代码块内
   let codeLang = '';
-  let codeBuf = [];
-  let listBuf = [];        // 累积列表项
-  let listType = null;     // 'ul' | 'ol'
+  let codeBuf: string[] = [];
+  let listBuf: string[] = [];  // 累积列表项
+  let listType: 'ul' | 'ol' | null = null;
 
   /** 冲刷列表缓冲 */
   function flushList() {
@@ -84,9 +84,9 @@ export function renderMd(src, opts = {}) {
       if (!skipTodo) {
         // 非分段模式下，待办渲染为普通 li（但注意：此路径下勾选不可用）
         const m = line.match(TODO_PATTERN);
-        const checked = /[xX]/.test(m[1]);
+        const checked = /[xX]/.test(m![1]);
         out.push(
-          `<p class="md-todo">${checked ? '☑' : '☐'} ${parseInline(m[2])}</p>`
+          `<p class="md-todo">${checked ? '☑' : '☐'} ${parseInline(m![2])}</p>`
         );
       }
       // skipTodo=true 时直接跳过，交给上层分段逻辑处理
