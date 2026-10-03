@@ -32,7 +32,7 @@ async function requestOnce<T>(options: RequestOptions, retried: boolean): Promis
     header.Authorization = `Bearer ${token}`;
   }
 
-  const res = await send(options);
+  const res = await send({ ...options, header });
   const parsed = parseResponse<T>(res);
   if (parsed.ok) return parsed.data;
 
