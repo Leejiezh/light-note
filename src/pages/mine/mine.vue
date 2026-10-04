@@ -20,9 +20,10 @@
 
     <!-- ═══════════ 资料卡：浏览态 ═══════════ -->
     <view v-else-if="!editing" class="card profile" key="profile-view">
-      <!-- 头像：渐变底 + 昵称首字符（底色来自用户在编辑态选的预设） -->
+      <!-- 头像：云端图片优先，没有则渐变底 + 昵称首字符 -->
       <view class="avatar" :style="avatarStyle" aria-hidden="true">
-        <text class="avatar-char">{{ initial }}</text>
+        <image v-if="backendAvatarUrl" class="avatar-img" :src="backendAvatarUrl" mode="aspectFill" />
+        <text v-else class="avatar-char">{{ initial }}</text>
       </view>
 
       <text class="name">{{ profile.nickname }}</text>
@@ -68,11 +69,20 @@
 
     <!-- ═══════════ 资料卡：编辑态（原地展开） ═══════════ -->
     <view v-else class="card profile editing" key="profile-edit">
-      <!-- 头像预览（随选中底色实时变化） -->
-      <view class="avatar" :style="draftAvatarStyle" aria-hidden="true">
-        <text class="avatar-char">{{ draftInitial }}</text>
+      <!-- 头像：点按选图并直传 MinIO；刚传完用本地路径预览（objectKey 渲染不了私有桶图片），
+           未传新图时显示云端现签 URL，都没有回落渐变底 -->
+      <view
+        class="avatar is-tappable"
+        :style="draftAvatarStyle"
+        role="button"
+        aria-label="选择头像图片并上传"
+        @tap="pickAvatar"
+      >
+        <image v-if="draftAvatarLocalPath" class="avatar-img" :src="draftAvatarLocalPath" mode="aspectFill" />
+        <image v-else-if="backendAvatarUrl" class="avatar-img" :src="backendAvatarUrl" mode="aspectFill" />
+        <text v-else class="avatar-char">{{ draftInitial }}</text>
       </view>
-      <text class="swatch-hint">选择头像底色</text>
+      <text class="swatch-hint">{{ uploading ? '头像上传中…' : '点击头像上传图片' }}</text>
 
       <!-- 底色预设：选中的带同色外圈 + 白色对勾 -->
       <view class="swatches">
@@ -291,7 +301,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import Icon from '@/components/Icon.vue';
-import { getNotes, getTags, isLoggedIn, ensureLogin, logout } from '@/api';
+import { getNotes, getTags, isLoggedIn, ensureLogin, logout, presignImage, uploadToMinio, getProfile, updateProfile } from '@/api';
 import {
   readProfile,
   writeProfile,
@@ -352,6 +362,123 @@ const focused = ref('');
 const errors = ref<Record<string, string>>({});
 const saving = ref(false);
 
+// ---------- 云端头像（MinIO） ----------
+/** 后端现签的头像访问 URL：会过期，每次 onShow 重新拉，绝不持久化 */
+const backendAvatarUrl = ref('');
+/** 当前云端头像 objectKey：保存资料时未换图也要原样回传，否则后端当成清空 */
+const cloudAvatarKey = ref('');
+/** 编辑态刚上传的头像：本地路径只做预览，落库用 objectKey */
+const draftAvatarKey = ref('');
+const draftAvatarLocalPath = ref('');
+const uploading = ref(false);
+
+/** 拉云端资料里的头像；失败静默回落渐变底，不打断页面 */
+async function loadCloudAvatar() {
+  if (!isLoggedIn()) {
+    backendAvatarUrl.value = '';
+    cloudAvatarKey.value = '';
+    return;
+  }
+  try {
+    const p = await getProfile();
+    cloudAvatarKey.value = p.avatarKey || '';
+    backendAvatarUrl.value = p.avatarUrl || '';
+  } catch (e) {
+    // 头像拉不到就展示渐变底，不值得报错打扰
+  }
+}
+
+/**
+ * ★ 编辑态点头像：选图 → presign → 直传 MinIO
+ *
+ * 立即上传而不是等「保存」：直传成败马上可见，也避免保存时才暴露。
+ * 上传成功只暂存 objectKey，落库由保存动作统一提交；取消编辑的话
+ * 对象停在 TEMP，24h 后被后端清理任务回收，前端无需删除。
+ */
+async function pickAvatar() {
+  if (uploading.value) return;
+
+  let picked: { path: string; size: number };
+  try {
+    picked = await chooseAvatarImage();
+  } catch (err) {
+    // 用户取消选图是正常操作，不提示；其余失败才提示
+    if (!isCancel(err)) {
+      uni.showToast({ title: errorMessage(err, '未选择图片'), icon: 'none' });
+    }
+    return;
+  }
+
+  uploading.value = true;
+  uni.showLoading({ title: '上传中…', mask: true });
+  try {
+    const presign = await presignImage(imageMime(picked.path), picked.size, 'avatar');
+    await uploadToMinio(presign, picked.path);
+    draftAvatarKey.value = presign.objectKey;
+    draftAvatarLocalPath.value = picked.path;
+    // ★ 先关 loading 再 toast：两者共用同一容器，顺序反了会互相吞掉
+    uni.hideLoading();
+    uni.showToast({ title: '头像已上传', icon: 'success' });
+  } catch (e) {
+    uni.hideLoading();
+    uni.showToast({ title: errorMessage(e, '头像上传失败'), icon: 'none' });
+  } finally {
+    uploading.value = false;
+  }
+}
+
+/** 选相册（小程序优先 chooseMedia，chooseImage 已停止维护；H5 预览回落 chooseImage） */
+function chooseAvatarImage(): Promise<{ path: string; size: number }> {
+  return new Promise((resolve, reject) => {
+    const done = (path: string, size: number) => {
+      if (path && size > 0) resolve({ path, size });
+      else reject(new Error('未能读取所选图片'));
+    };
+
+    // #ifdef MP-WEIXIN
+    if (typeof wx !== 'undefined' && typeof wx.chooseMedia === 'function') {
+      wx.chooseMedia({
+        count: 1,
+        mediaType: ['image'],
+        sizeType: ['compressed'],
+        success: (res) => {
+          const f = res.tempFiles && res.tempFiles[0];
+          done(f ? f.tempFilePath : '', f ? f.size : 0);
+        },
+        fail: reject
+      });
+      return;
+    }
+    // #endif
+
+    uni.chooseImage({
+      count: 1,
+      sizeType: ['compressed'],
+      success: (res) => {
+        const f = res.tempFiles && res.tempFiles[0];
+        const path = (f && f.path) || (res.tempFilePaths && res.tempFilePaths[0]) || '';
+        done(path, (f && f.size) || 0);
+      },
+      fail: reject
+    });
+  });
+}
+
+/** 用户取消选图不算失败：chooseMedia / chooseImage 的 cancel 都走 fail 回调，按 errMsg 识别 */
+function isCancel(err: unknown): boolean {
+  const msg = String((err as { errMsg?: string })?.errMsg || err || '');
+  return /cancel/i.test(msg);
+}
+
+/** 按扩展名推 MIME；相册图以 jpg/png 为主，webp/gif 兜底，其余一律按 jpeg */
+function imageMime(path: string): string {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  return 'image/jpeg';
+}
+
 const initial = computed(() => initialOf(profile.value.nickname));
 const draftInitial = computed(() => initialOf(draft.value.nickname));
 
@@ -385,6 +512,8 @@ function swatchStyle(p: AvatarPreset) {
 // ---------- 编辑流转 ----------
 function startEdit() {
   draft.value = { ...profile.value };
+  draftAvatarKey.value = '';
+  draftAvatarLocalPath.value = '';
   errors.value = {};
   focused.value = '';
   editing.value = true;
@@ -406,7 +535,7 @@ function countAtMax(key: 'nickname' | 'signature') {
   return max ? charCount(draft.value[key]) >= max : false;
 }
 
-function save() {
+async function save() {
   if (saving.value) return;
 
   const res = validateProfile(draft.value);
@@ -419,8 +548,30 @@ function save() {
   saving.value = true;
   try {
     profile.value = writeProfile(res.profile);
+
+    // 云端同步（含头像 objectKey）：未换图回传原 key，后端视为未变更。
+    // 失败不阻断本地保存，仅提示降级结果
+    let cloudOk = true;
+    if (isLoggedIn()) {
+      try {
+        await updateProfile({
+          nickname: res.profile.nickname,
+          signature: res.profile.signature,
+          email: res.profile.email,
+          location: res.profile.location,
+          avatarUrl: draftAvatarKey.value || cloudAvatarKey.value
+        });
+        await loadCloudAvatar();
+      } catch (e) {
+        cloudOk = false;
+      }
+    }
+
     editing.value = false;
-    uni.showToast({ title: '资料已更新', icon: 'success' });
+    uni.showToast({
+      title: cloudOk ? '资料已更新' : '已保存，云同步失败',
+      icon: cloudOk ? 'success' : 'none'
+    });
   } catch (e) {
     uni.showToast({ title: errorMessage(e, '保存失败'), icon: 'none' });
   } finally {
@@ -483,6 +634,8 @@ onShow(() => {
   if (!editing.value) profile.value = readProfile();
   // 登录态可能被启动静默登录 / 401 自动重登改变，同步一次
   logged.value = isLoggedIn();
+  // 头像访问 URL 会过期，每次回页重新签
+  loadCloudAvatar();
 });
 </script>
 
@@ -583,6 +736,24 @@ onShow(() => {
   border-radius: $radius-full;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 46%);
   pointer-events: none;
+}
+
+/* 云端/刚上传的图片头像：盖在渐变底上，圆角与容器一致 */
+.avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: $radius-full;
+}
+
+/* 编辑态头像可点：与其它主操作一致的按压缩放反馈 */
+.avatar.is-tappable {
+  transition: transform $duration-fast $ease-out;
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .avatar-char {

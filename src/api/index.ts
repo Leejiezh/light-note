@@ -23,10 +23,13 @@ export {
 export { getTags } from './modules/tag';
 export { search } from './modules/search';
 export { getDictItems, getNoteLabels, NOTE_LABEL_TYPE_CODE } from './modules/dict';
+export { presignImage, uploadToMinio, getFileUrl } from './modules/file';
+export { getProfile, updateProfile } from './modules/user';
 
 export type {
   Note, NoteListItem, NoteDraft, NoteQuery,
   PageQuery, PageResult, SearchResult, SearchHit, SearchQuery,
   TagItem, DictItem, DictItemExtra, LoginResult, CheckUpdateResult, OkResult,
+  UserProfile, UserProfileDraft, PresignResp,
   RequestOptions, HttpMethod, ApiEnvelope
 } from './types';

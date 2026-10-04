@@ -136,6 +136,47 @@ export interface LoginResult {
   token: string;
 }
 
+// ---------- 用户资料（GET/PUT /user/profile） ----------
+
+/** 用户资料（GET /user/profile 的 data） */
+export interface UserProfile {
+  id: string;
+  nickname: string;
+  /** 头像 objectKey：保存资料时原样回传，未换头像就不动它 */
+  avatarKey?: string;
+  /** 头像现签访问 URL，会过期 —— 只用于展示，绝不持久化 */
+  avatarUrl?: string;
+  signature?: string;
+  email?: string;
+  location?: string;
+}
+
+/** 资料更新载荷（PUT /user/profile 的 body；avatarUrl 传 objectKey，空串 = 清空头像） */
+export interface UserProfileDraft {
+  nickname: string;
+  signature?: string;
+  email?: string;
+  location?: string;
+  avatarUrl?: string;
+}
+
+// ---------- 文件（FileController，图片两段式直传 MinIO） ----------
+
+/**
+ * 图片预签名上传表单（POST /file/presign 的 data）。
+ * formData 是预签名策略的 eq 条件，必须原样全量透传给 uni.uploadFile。
+ */
+export interface PresignResp {
+  /** POST 直传目标 URL（MinIO，不是后端） */
+  postUrl: string;
+  /** 表单字段（key/Content-Type/policy/x-amz-*），原样转发、不增不减 */
+  formData: Record<string, string>;
+  /** 对象键，提交记录/资料时回传后端 */
+  objectKey: string;
+  /** 表单过期时间戳(ms) */
+  expiresAt?: number;
+}
+
 /** 勾选状态更新响应（§5.2：不更新 updatedAt、不重算 excerpt） */
 export interface CheckUpdateResult {
   id: string;
