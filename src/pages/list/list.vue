@@ -67,6 +67,7 @@ import Icon from '@/components/Icon.vue';
 import { getNotes, DEFAULT_PAGE_SIZE } from '@/api';
 import type { NoteListItem } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
+import { ensureTagDict, readTagDict } from '@/utils/store/tags';
 
 const notes = ref<NoteListItem[]>([]);
 const loading = ref(false);       // 首屏 / 下拉刷新
@@ -78,11 +79,14 @@ const pageNum = ref(1);
 const total = ref(0);
 const hasNext = ref(false);
 
-const TAG_LABELS: Record<string, string> = { all: '全部', work: '工作', design: '设计', tech: '技术', life: '生活' };
+/** 「全部」是前端筛选项（不按标签过滤），不属于字典项 */
+const ALL_FILTER = { value: 'all', label: '全部' };
 
-const tagOptions = computed(() =>
-  Object.entries(TAG_LABELS).map(([value, label]) => ({ value, label }))
-);
+/** 筛选项 = 全部 + 字典里的标签（名称与顺序以后端字典为准） */
+const tagOptions = computed(() => [
+  ALL_FILTER,
+  ...readTagDict().map((it) => ({ value: it.key, label: it.label }))
+]);
 
 const listEnd = computed(() =>
   loadingMore.value ? '正在加载…' : hasNext.value ? '上拉加载更多' : `共 ${total.value} 条笔记`
@@ -97,6 +101,10 @@ async function load(mode: 'reset' | 'more' = 'reset') {
   const targetPage = mode === 'reset' ? 1 : pageNum.value + 1;
   if (mode === 'reset') loading.value = true;
   else loadingMore.value = true;
+
+  // 标签字典兜底：App.onLaunch 已拉过 → 这里直接返回，不发请求；
+  // 若冷启动那次失败，进本页会再试一次。不阻塞列表。
+  ensureTagDict().catch(() => {});
 
   try {
     const res = await getNotes({

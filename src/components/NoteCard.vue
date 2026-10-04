@@ -15,7 +15,13 @@
     <text class="excerpt ellipsis-2">{{ note.excerpt || '（空笔记）' }}</text>
 
     <view class="card-foot">
-      <text v-if="note.tag && note.tag !== 'all'" class="tag">{{ tagLabel }}</text>
+      <text
+        v-if="note.tag && note.tag !== 'all'"
+        class="tag"
+        :style="{ color: tagColors.color, background: tagColors.background }"
+      >
+        {{ tagLabel }}
+      </text>
       <text class="time">{{ relTime }}</text>
     </view>
   </view>
@@ -25,6 +31,7 @@
 import { computed } from 'vue';
 import Icon from '@/components/Icon.vue';
 import type { NoteListItem } from '@/api';
+import { readTagLabel, readTagColors } from '@/utils/store/tags';
 
 const props = defineProps<{
   note: NoteListItem;
@@ -35,15 +42,9 @@ defineEmits<{
   (e: 'longpress', note: NoteListItem): void;
 }>();
 
-const TAG_LABELS: Record<string, string> = {
-  work: '工作',
-  design: '设计',
-  tech: '技术',
-  life: '生活',
-  all: '全部'
-};
-
-const tagLabel = computed(() => TAG_LABELS[props.note.tag] || props.note.tag);
+/** 标签名与配色统一来自字典（GET /dict/note_label） */
+const tagLabel = computed(() => readTagLabel(props.note.tag));
+const tagColors = computed(() => readTagColors(props.note.tag));
 
 /** 相对时间 */
 const relTime = computed(() => {
@@ -113,8 +114,7 @@ const relTime = computed(() => {
 
 .tag {
   font-size: $text-xs;
-  color: $brand-600;
-  background: $brand-50;
+  /* 文字色与底色由字典配色内联给出（见 tagColors），避免两处色值来源 */
   padding: 4rpx 14rpx;
   border-radius: $radius-full;
 }

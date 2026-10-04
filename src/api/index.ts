@@ -22,10 +22,11 @@ export {
 } from './modules/note';
 export { getTags } from './modules/tag';
 export { search } from './modules/search';
+export { getDictItems, getNoteLabels, NOTE_LABEL_TYPE_CODE } from './modules/dict';
 
 export type {
   Note, NoteListItem, NoteDraft, NoteQuery,
   PageQuery, PageResult, SearchResult, SearchHit, SearchQuery,
-  TagItem, LoginResult, CheckUpdateResult, OkResult,
+  TagItem, DictItem, DictItemExtra, LoginResult, CheckUpdateResult, OkResult,
   RequestOptions, HttpMethod, ApiEnvelope
 } from './types';

@@ -6,7 +6,7 @@
 // ============================================================
 
 import { normalizeChecks, extractExcerpt } from '@/utils/markdown';
-import { DB, nextId, delay, hydrate, toListItem, highlight } from './db';
+import { DB, DICT, nextId, delay, hydrate, toListItem, highlight } from './db';
 import { normalizePageQuery } from '../pagination';
 import type { RequestOptions, NoteDraft, PageQuery, PageResult } from '../types';
 
@@ -82,6 +82,14 @@ async function route(options: RequestOptions): Promise<unknown> {
       map[n.tag] = (map[n.tag] || 0) + 1;
     });
     return { list: Object.entries(map).map(([name, count]) => ({ name, count })) };
+  }
+
+  // 字典（GET /dict/{typeCode}）★ 与真实契约对齐：data 是裸数组，不分页
+  const dictMatch = path.match(/^\/dict\/([^/]+)$/);
+  if (dictMatch && method === 'GET') {
+    const items = DICT[dictMatch[1]];
+    if (!items) return Promise.reject(new Error(`未知字典类型: ${dictMatch[1]}`));
+    return items;
   }
 
   // 详情

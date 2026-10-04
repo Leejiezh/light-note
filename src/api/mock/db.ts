@@ -5,7 +5,7 @@
 // ============================================================
 
 import { countTodos, extractExcerpt, normalizeChecks } from '@/utils/markdown';
-import type { Note, NoteListItem } from '../types';
+import type { Note, NoteListItem, DictItem } from '../types';
 
 /** 内存态的笔记（比对外多一个软删除标记） */
 export type StoredNote = Note & { deletedAt?: number };
@@ -120,6 +120,21 @@ export const DB: StoredNote[] = [
     updatedAt: now - 1 * HOUR
   }
 ];
+
+/**
+ * 字典数据（对应真实接口 GET /dict/{typeCode}）
+ * ★ 色值与后端（Apifox 项目「轻记-uniapp」接口 521392829 的响应示例）保持一致 ——
+ *   mock 模拟的是「后端返回的数据」而不是前端 UI 常量，
+ *   所以这里出现 hex 不违反「样式统一走令牌」。
+ */
+export const DICT: Record<string, DictItem[]> = {
+  note_label: [
+    { key: 'work', label: '工作', sortOrder: 10, extra: { color: { light: '#7C3AED', dark: '#A98BFF' } } },
+    { key: 'design', label: '设计', sortOrder: 20, extra: { color: { light: '#EC4899', dark: '#F68EC2' } } },
+    { key: 'tech', label: '技术', sortOrder: 30, extra: { color: { light: '#3B82F6', dark: '#8AB5F9' } } },
+    { key: 'life', label: '生活', sortOrder: 40, extra: { color: { light: '#F59E0B', dark: '#FBBF24' } } }
+  ]
+};
 
 /** 补齐可能缺失的字段，保证契约完整 */
 export function hydrate(n: StoredNote): Note {

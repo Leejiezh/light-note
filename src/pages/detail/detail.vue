@@ -8,7 +8,13 @@
 
       <!-- 元信息 -->
       <view class="meta">
-        <text v-if="note.tag && note.tag !== 'all'" class="tag">{{ tagLabel }}</text>
+        <text
+          v-if="note.tag && note.tag !== 'all'"
+          class="tag"
+          :style="{ color: tagColors.color, background: tagColors.background }"
+        >
+          {{ tagLabel }}
+        </text>
         <text class="time">{{ formatTime(note.updatedAt) }}</text>
       </view>
 
@@ -68,14 +74,16 @@ import type { Segment } from '@/utils/markdown';
 import { getNote, updateChecks, deleteNote } from '@/api';
 import type { Note } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
+import { ensureTagDict, readTagLabel, readTagColors } from '@/utils/store/tags';
 
 const NOTE_ID = ref('');
 const note = ref<Note | null>(null);
 const segments = ref<Segment[]>([]);
 const loading = ref(true);
 
-const TAG_LABELS: Record<string, string> = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '全部' };
-const tagLabel = computed(() => TAG_LABELS[note.value?.tag || ''] || note.value?.tag || '');
+/** 标签名与配色统一来自字典（GET /dict/note_label） */
+const tagLabel = computed(() => readTagLabel(note.value?.tag || ''));
+const tagColors = computed(() => readTagColors(note.value?.tag || ''));
 
 onLoad(async (query?: Record<string, string | undefined>) => {
   NOTE_ID.value = query?.id || '';
@@ -84,6 +92,8 @@ onLoad(async (query?: Record<string, string | undefined>) => {
 
 async function load() {
   loading.value = true;
+  // 标签字典与正文并行加载：不阻塞正文渲染，失败静默降级
+  ensureTagDict().catch(() => {});
   try {
     const res = await getNote(NOTE_ID.value);
     note.value = res;
@@ -220,8 +230,7 @@ onUnload(() => {
 
 .tag {
   font-size: $text-xs;
-  color: $brand-600;
-  background: $brand-50;
+  /* 文字色与底色由字典配色内联给出（见 tagColors），避免两处色值来源 */
   padding: 4rpx 14rpx;
   border-radius: $radius-full;
 }

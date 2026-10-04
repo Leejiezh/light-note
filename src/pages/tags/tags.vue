@@ -42,26 +42,20 @@ import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
 import { getTags } from '@/api';
 import type { TagItem } from '@/api';
+import { ensureTagDict, readTagLabel, readTagColor } from '@/utils/store/tags';
 
 const tags = ref<TagItem[]>([]);
 const loading = ref(false);
 
-const LABELS: Record<string, string> = { work: '工作', design: '设计', tech: '技术', life: '生活', all: '未分类' };
-const COLORS: Record<string, string> = {
-  work: '#7C3AED',
-  design: '#EC4899',
-  tech: '#3B82F6',
-  life: '#F59E0B',
-  all: '#9C9CA8'
-};
-
-const labelOf = (n: string) => LABELS[n] || n;
-const colorOf = (n: string) => COLORS[n] || '#7C3AED';
+// 标签名与颜色统一来自字典（GET /dict/note_label），前端不再维护标签表
+const labelOf = (n: string) => readTagLabel(n);
+const colorOf = (n: string) => readTagColor(n);
 
 async function load() {
   loading.value = true;
   try {
-    const res = await getTags();
+    // 字典（名称 / 颜色）与计数（后端另一接口）并行；字典拉取失败会静默降级
+    const [, res] = await Promise.all([ensureTagDict(), getTags()]);
     tags.value = res.list || [];
   } catch (e) {
     uni.showToast({ title: '加载失败', icon: 'none' });

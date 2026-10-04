@@ -65,7 +65,7 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 
 ### 7. 改 Markdown 解析器必须跑测试
 
-`src/utils/markdown/` 是纯 TS、可跨端复用，配套 `tests/parser.test.ts`（89 个用例）；`src/utils/store/profile.ts`（我的页资料存储）配套 `tests/profile.test.ts`（42 个用例）。**任何改动都要 `npm test` 全绿**（vitest，两条套件一起跑）。分段解析的 `checks` 契约（`segment.ts`）被列表页和详情页共用，改动前先看清调用方。
+`src/utils/markdown/` 是纯 TS、可跨端复用，配套 `tests/parser.test.ts`（89 个用例）；`src/utils/store/profile.ts`（我的页资料存储）配套 `tests/profile.test.ts`（42 个用例）；`src/utils/store/tags.ts`（标签字典）配套 `tests/tags.test.ts`。**任何改动都要 `npm test` 全绿**（vitest，四条套件一起跑）。分段解析的 `checks` 契约（`segment.ts`）被列表页和详情页共用，改动前先看清调用方。
 
 ### 8. 图标只用两条通道，不要混入 emoji / 文字符号
 
@@ -81,6 +81,12 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 - "共 N 条"这类总数文案用响应里的 `total`，**不要用当前页的 `list.length`**
 - 后端的业务 VO（`RecordVO` / `ReportVO`）字段未冻结，本项目当前的 `Note` / `NoteListItem` 是过渡形态，对齐前先确认
 
+### 10. 标签字典只在冷启动拉一次
+
+- 字典（`GET /dict/note_label`）的唯一入口是 `src/utils/store/tags.ts` 的 `ensureTagDict()`，**只在 `App.vue` 的 `onLaunch` 调用**；页面里再调只是兜底（已加载会直接返回）
+- **不要把它挂回「每次切换筛选 / 每次进页面都请求」的行为**：`loaded` 标记保证一次冷启动只打一次接口，缓存在 `tag_dict`；失败不置位（允许重试），这是 `tests/tags.test.ts` 锁住的不变式
+- 页面里**不要自己请求字典**，一律用 `readTagDict` / `readTagLabel` / `readTagColor(s)`
+
 ## 目录导航
 
 | 路径 | 说明 |
@@ -89,7 +95,7 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 | `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue`、`Icon.vue`（★ 图标） |
 | `src/api/` | 请求层（分层）：`client.ts` 传输 / `auth.ts` 鉴权 / `request.ts` 编排（401 重登重放）/ `pagination.ts` 分页契约 / `modules/` 领域接口 / `mock/` stub；`config.ts` 的 `USE_MOCK` 是 mock 开关 |
 | `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.ts` |
-| `src/utils/store/` | 本地存储层：`profile.ts`（我的页个人资料，配套 42 个单测） |
+| `src/utils/store/` | 本地存储层：`profile.ts`（我的页个人资料，配套 42 个单测）、`theme.ts`（主题）、`tags.ts`（★ 标签字典：冷启动拉一次 `GET /dict/note_label` 后落缓存，会话内只读缓存，配套 `tests/tags.test.ts`） |
 | `src/styles/` | `tokens.scss`（SCSS 令牌）、`global.scss`（CSS 变量）、`iconfont.scss`（图标字体） |
 | `src/static/` | `fonts/lnicon.ttf`（图标字体子集）、`tabbar/`（tabBar PNG 图标） |
 | `tests/parser.test.ts` | 解析器 + 行内格式 + 图片插入单测（89 个用例；`tests/profile.test.ts` 另有 42 个） |

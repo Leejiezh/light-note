@@ -305,6 +305,8 @@ import {
   EMAIL_MAX
 } from '@/utils/store/profile';
 import type { Profile, ProfileDraft, AvatarKey, AvatarPreset } from '@/utils/store/profile';
+import { getTheme, setTheme } from '@/utils/store/theme';
+import type { ThemeMode } from '@/utils/store/theme';
 import { errorMessage } from '@/utils/errorMessage';
 
 // ---------- 资料（浏览态） ----------
@@ -428,7 +430,7 @@ function save() {
 
 // ---------- 统计（沿用原有逻辑） ----------
 const stats = ref({ total: 0, done: 0, tags: 0 });
-const theme = ref<string>(String(uni.getStorageSync('theme') || 'light'));
+const theme = ref<ThemeMode>(getTheme());
 const themeLabel = computed(() => (theme.value === 'dark' ? '深色' : '浅色'));
 
 async function load() {
@@ -452,8 +454,8 @@ function onAppearance() {
     content: `切换到${next === 'dark' ? '深色' : '浅色'}模式？`,
     success: ({ confirm }) => {
       if (!confirm) return;
-      theme.value = next;
-      uni.setStorageSync('theme', next);
+      // 统一走主题 store：写存储 + 广播给订阅者（标签按主题取色要用到）
+      theme.value = setTheme(next);
       // 骨架阶段仅记录设置；小程序端需配合页面根节点 class 生效
       uni.showToast({
         title: next === 'dark' ? '已切换深色（需重启生效）' : '已切换浅色',

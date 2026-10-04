@@ -107,6 +107,30 @@ export interface TagItem {
   count: number;
 }
 
+// ---------- 字典（GET /dict/{typeCode}） ----------
+
+/**
+ * 字典项的「类型专属属性」：后端原样透传、不拍平（如 extra.color）。
+ * 用宽松索引签名而不是写死字段 —— 后端给某类型加属性时这里不用改。
+ */
+export interface DictItemExtra {
+  /** 标签色：light / dark 分别对应浅色与暗色模式；缺省时前端走令牌兜底 */
+  color?: { light?: string; dark?: string };
+  [key: string]: unknown;
+}
+
+/** 字典项（GET /dict/{typeCode} 的 data 元素，data 是裸数组，不分页） */
+export interface DictItem {
+  /** 项键：落库用，RecordVO.label 存的就是它 */
+  key: string;
+  /** 展示名 */
+  label: string;
+  /** 排序（后端已按此升序返回） */
+  sortOrder: number;
+  /** 类型专属属性（如 extra.color） */
+  extra?: DictItemExtra;
+}
+
 /** 登录响应（统一包装已在 client 层剥壳，这里就是 data） */
 export interface LoginResult {
   token: string;
