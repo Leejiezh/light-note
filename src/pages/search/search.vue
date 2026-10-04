@@ -67,16 +67,20 @@
         />
         <text v-else class="r-excerpt">{{ n.excerpt }}</text>
       </view>
+
+      <text v-if="hasNext || loadingMore" class="more-tip">
+        {{ loadingMore ? '正在加载…' : '上拉加载更多' }}
+      </text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onReachBottom } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
-import { search } from '@/api';
+import { search, DEFAULT_PAGE_SIZE } from '@/api';
 import type { SearchHit } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 
@@ -85,7 +89,12 @@ const results = ref<SearchHit[]>([]);
 const total = ref(0);
 const searched = ref(false);
 const loading = ref(false);
+const loadingMore = ref(false);   // 上拉加载下一页
 const autoFocus = ref(true);
+
+/** 分页状态（后端统一契约：请求 pageNum / pageSize，响应 hasNext 决定还能不能上拉） */
+const pageNum = ref(1);
+const hasNext = ref(false);
 
 onLoad(() => {
   autoFocus.value = true;
@@ -103,32 +112,57 @@ function onInput() {
   timer = setTimeout(doSearch, 400);
 }
 
-async function doSearch() {
+/** 拉第 page 页；append=true 追加（上拉加载），false 替换（新的一次搜索） */
+async function fetchPage(page: number, append: boolean) {
   const q = keyword.value.trim();
   if (!q) return;
 
-  loading.value = true;
+  if (append) loadingMore.value = true;
+  else loading.value = true;
   searched.value = true;
+
   try {
-    const res = await search({ q });
-    results.value = res.list || [];
+    const res = await search({ q, pageNum: page, pageSize: DEFAULT_PAGE_SIZE });
+    const list = res.list || [];
+    results.value = append ? results.value.concat(list) : list;
     total.value = res.total ?? results.value.length;
+    hasNext.value = !!res.hasNext;
+    pageNum.value = page;
   } catch (e) {
     uni.showToast({ title: errorMessage(e, '搜索失败'), icon: 'none' });
   } finally {
     loading.value = false;
+    loadingMore.value = false;
   }
+}
+
+/** 新的一次搜索：回到第 1 页 */
+async function doSearch() {
+  if (!keyword.value.trim()) return;
+  await fetchPage(1, false);
+}
+
+/** 触底加载下一页 */
+function loadMore() {
+  if (!searched.value || loading.value || loadingMore.value || !hasNext.value) return;
+  fetchPage(pageNum.value + 1, true);
 }
 
 function clear() {
   keyword.value = '';
   results.value = [];
   searched.value = false;
+  total.value = 0;
+  hasNext.value = false;
+  pageNum.value = 1;
 }
 
 function goDetail(id: string) {
   uni.navigateTo({ url: `/pages/detail/detail?id=${id}` });
 }
+
+// 触底加载下一页
+onReachBottom(loadMore);
 </script>
 
 <style lang="scss" scoped>
@@ -241,6 +275,14 @@ function goDetail(id: string) {
   font-size: $text-sm;
   color: var(--text-secondary);
   line-height: $leading-normal;
+}
+
+.more-tip {
+  display: block;
+  text-align: center;
+  font-size: $text-xs;
+  color: var(--text-tertiary);
+  padding: $space-4 0;
 }
 </style>
 

@@ -1,7 +1,8 @@
 // ============================================================
 // 轻记 · API 层的领域类型（DTO）
 //
-// 对应 data-api-contract.md §一 的 Note Schema 与 §五 的接口定义。
+// 分页的请求 / 响应外壳对应 docs/api/pagination.md（后端统一契约）；
+// 业务 VO 字段（RecordVO / ReportVO）尚未冻结，以后端为准。
 // 后端字段变化时，只需要改这一个文件。
 // ============================================================
 
@@ -19,7 +20,11 @@ export interface RequestOptions {
   header?: Record<string, string>;
 }
 
-/** 后端统一响应包装 { code, data, msg } */
+/**
+ * 后端统一响应外壳 `R<T>`（docs/api/pagination.md §1）：字段固定 code / msg / data。
+ * 成功失败一律看 body.code，不看 HTTP 状态码。
+ * message 只是少数旧接口的别名字段，取不到 msg 时兜底。
+ */
 export interface ApiEnvelope<T = unknown> {
   code: number;
   data: T;
@@ -55,11 +60,34 @@ export interface NoteListItem {
   updatedAt: number;
 }
 
-/** 游标分页结果 */
-export interface PageResult<T> {
-  list: T[];
-  hasMore: boolean;
-  cursor: string | null;
+// ---------- 分页（后端统一契约，docs/api/pagination.md §2 / §3） ----------
+
+/**
+ * 分页请求参数：GET 查询串传参（不是 JSON body），字段名与响应同名。
+ * 不传 / 传空串后端都兜底为 pageNum=1、pageSize=10；pageSize 上限 100。
+ */
+export interface PageQuery {
+  /** 页码，从 1 开始，≥ 1 */
+  pageNum?: number;
+  /** 每页条数，1 ~ 100 */
+  pageSize?: number;
+}
+
+/**
+ * 分页响应 data：list 里放业务 VO。
+ * ★ 上拉加载只需 `if (hasNext) pageNum++` 再请求，前端不自己算总页数。
+ */
+export interface PageResult<V> {
+  /** 当前页数据，为空时是 []（不会是 null） */
+  list: V[];
+  /** 总条数（"共 N 条"文案用） */
+  total: number;
+  /** 当前页码（与请求同名） */
+  pageNum: number;
+  /** 每页条数（与请求同名） */
+  pageSize: number;
+  /** 是否还有下一页 */
+  hasNext: boolean;
 }
 
 /** 搜索命中（比列表项多一份服务端高亮） */
@@ -70,10 +98,8 @@ export interface SearchHit extends NoteListItem {
   };
 }
 
-/** 搜索结果 */
-export interface SearchResult extends PageResult<SearchHit> {
-  total: number;
-}
+/** 搜索结果（与分页契约同形，total 已在 PageResult 内） */
+export type SearchResult = PageResult<SearchHit>;
 
 /** 标签（名称 + 笔记数） */
 export interface TagItem {
@@ -99,21 +125,17 @@ export interface OkResult {
 
 // ---------- 查询 / 写入参数 ----------
 
-/** 笔记列表查询参数 */
-export interface NoteQuery {
+/** 笔记列表查询参数（分页 + 标签筛选） */
+export interface NoteQuery extends PageQuery {
   tag?: string;
-  cursor?: string | null;
-  limit?: number;
 }
 
-/** 搜索查询参数 */
-export interface SearchQuery {
+/** 搜索查询参数（分页 + 关键词 / 标签） */
+export interface SearchQuery extends PageQuery {
   /** 关键词 */
   q?: string;
   /** 标签过滤 */
   tag?: string;
-  cursor?: string | null;
-  limit?: number;
 }
 
 /** 笔记写入载荷（创建 / 更新共用；tag 缺省 'all'） */

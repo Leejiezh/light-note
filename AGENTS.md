@@ -73,13 +73,21 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 - 给 Icon 上色用 `color` prop（建议传 CSS 变量）或父级文字色继承；**不要用页面 class 给 Icon 改颜色**——小程序自定义组件样式隔离，类选择器穿不进去（H5 正常、小程序失效，别只看 H5）
 - tabBar 图标**必须是 PNG**（`static/tabbar/`，81×81），字体图标 / SVG 都不行；新增图标先查 `RUNNING.md` §八⑧ 的流程
 
+### 9. 分页统一走后端契约（`docs/api/pagination.md`）
+
+- 请求只有 `pageNum` / `pageSize`（**GET 查询串，不是 JSON body**），默认 1 / 10，上限 100；响应 `data` 恒为 `{ list, total, pageNum, pageSize, hasNext }`
+- 上拉加载是 `if (hasNext) pageNum++` 再请求，**不要自己算总页数，也不要引入 cursor / offset**
+- 默认值与上限的归一化只在 `src/api/pagination.ts`（`normalizePageQuery`），真实接口与 mock 共用；**不要在各页面里手写分页参数**
+- "共 N 条"这类总数文案用响应里的 `total`，**不要用当前页的 `list.length`**
+- 后端的业务 VO（`RecordVO` / `ReportVO`）字段未冻结，本项目当前的 `Note` / `NoteListItem` 是过渡形态，对齐前先确认
+
 ## 目录导航
 
 | 路径 | 说明 |
 |---|---|
 | `src/pages/` | 六个页面：list / detail / editor / tags / search / mine |
 | `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue`、`Icon.vue`（★ 图标） |
-| `src/api/` | 请求层（分层）：`client.ts` 传输 / `auth.ts` 鉴权 / `request.ts` 编排（401 重登重放）/ `modules/` 领域接口 / `mock/` stub；`config.ts` 的 `USE_MOCK` 是 mock 开关 |
+| `src/api/` | 请求层（分层）：`client.ts` 传输 / `auth.ts` 鉴权 / `request.ts` 编排（401 重登重放）/ `pagination.ts` 分页契约 / `modules/` 领域接口 / `mock/` stub；`config.ts` 的 `USE_MOCK` 是 mock 开关 |
 | `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.ts` |
 | `src/utils/store/` | 本地存储层：`profile.ts`（我的页个人资料，配套 42 个单测） |
 | `src/styles/` | `tokens.scss`（SCSS 令牌）、`global.scss`（CSS 变量）、`iconfont.scss`（图标字体） |

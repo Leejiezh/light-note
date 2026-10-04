@@ -511,7 +511,7 @@ node -e "const p=require('./package-lock.json').packages;['node_modules/vue','no
 1. 把 `USE_MOCK` 改为 `false`，配置 `BASE_URL`
 2. 补鉴权头（登录态 / `openid`）
 3. 处理接口错误码与全局 Toast
-4. 长列表分页（`cursor` 参数已预留）
+4. 长列表分页（已按后端契约实现：请求 `pageNum` / `pageSize`，上拉看 `hasNext`，见 `docs/api/pagination.md`）
 5. 图片上传：现在图片存的是**本机路径**（见 §八 ⑦），跨设备就失效。接后端后把 `editor.vue` 的 `persistImage` 换成 `uni.uploadFile`、返回网络地址即可 —— 正文格式、`isSafeUrl` 白名单、详情页渲染都不用改
 6. 回收站页面（`mine.vue` 里的入口目前是占位）
 

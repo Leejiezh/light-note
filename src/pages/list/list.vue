@@ -43,7 +43,7 @@
         @open="goDetail"
         @longpress="onLongPress"
       />
-      <text class="list-end">共 {{ notes.length }} 条笔记</text>
+      <text class="list-end">{{ listEnd }}</text>
     </view>
 
     <!-- 悬浮新建按钮 -->
@@ -60,17 +60,23 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onShow, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import NoteCard from '@/components/NoteCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
-import { getNotes } from '@/api';
+import { getNotes, DEFAULT_PAGE_SIZE } from '@/api';
 import type { NoteListItem } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 
 const notes = ref<NoteListItem[]>([]);
-const loading = ref(false);
+const loading = ref(false);       // 首屏 / 下拉刷新
+const loadingMore = ref(false);   // 上拉加载下一页
 const activeTag = ref('all');
+
+/** 分页状态（后端统一契约：请求 pageNum / pageSize，响应 hasNext 决定还能不能上拉） */
+const pageNum = ref(1);
+const total = ref(0);
+const hasNext = ref(false);
 
 const TAG_LABELS: Record<string, string> = { all: '全部', work: '工作', design: '设计', tech: '技术', life: '生活' };
 
@@ -78,16 +84,43 @@ const tagOptions = computed(() =>
   Object.entries(TAG_LABELS).map(([value, label]) => ({ value, label }))
 );
 
-async function load() {
-  loading.value = true;
+const listEnd = computed(() =>
+  loadingMore.value ? '正在加载…' : hasNext.value ? '上拉加载更多' : `共 ${total.value} 条笔记`
+);
+
+/**
+ * mode='reset'：第 1 页（首次 / 切标签 / 下拉刷新）
+ * mode='more' ：下一页（上拉加载）
+ * ★ 按「目标页」请求，成功后才把页码落库，失败时不会漏掉一页。
+ */
+async function load(mode: 'reset' | 'more' = 'reset') {
+  const targetPage = mode === 'reset' ? 1 : pageNum.value + 1;
+  if (mode === 'reset') loading.value = true;
+  else loadingMore.value = true;
+
   try {
-    const res = await getNotes({ tag: activeTag.value });
-    notes.value = res.list || [];
+    const res = await getNotes({
+      tag: activeTag.value,
+      pageNum: targetPage,
+      pageSize: DEFAULT_PAGE_SIZE
+    });
+    const list = res.list || [];
+    notes.value = mode === 'reset' ? list : notes.value.concat(list);
+    total.value = res.total ?? notes.value.length;
+    hasNext.value = !!res.hasNext;
+    pageNum.value = targetPage;
   } catch (e) {
     uni.showToast({ title: errorMessage(e, '加载失败'), icon: 'none' });
   } finally {
     loading.value = false;
+    loadingMore.value = false;
   }
+}
+
+/** 上拉加载：只有后端说 hasNext 才加一页 */
+function loadMore() {
+  if (loading.value || loadingMore.value || !hasNext.value) return;
+  load('more');
 }
 
 function switchTag(v: string) {
@@ -136,6 +169,9 @@ onPullDownRefresh(async () => {
   await load();
   uni.stopPullDownRefresh();
 });
+
+// 触底加载下一页
+onReachBottom(loadMore);
 </script>
 
 <style lang="scss" scoped>

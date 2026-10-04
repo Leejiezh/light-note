@@ -435,7 +435,8 @@ async function load() {
   try {
     const [notesRes, tagsRes] = await Promise.all([getNotes({}), getTags()]);
     stats.value = {
-      total: (notesRes.list || []).length,
+      // 分页响应自带总条数，不要用当前页的 list.length
+      total: notesRes.total ?? (notesRes.list || []).length,
       done: 0, // 骨架阶段：真实实现需从各笔记 checks 汇总
       tags: (tagsRes.list || []).length
     };

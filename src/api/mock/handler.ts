@@ -7,9 +7,27 @@
 
 import { normalizeChecks, extractExcerpt } from '@/utils/markdown';
 import { DB, nextId, delay, hydrate, toListItem, highlight } from './db';
-import type { RequestOptions, NoteDraft } from '../types';
+import { normalizePageQuery } from '../pagination';
+import type { RequestOptions, NoteDraft, PageQuery, PageResult } from '../types';
 
 type MockData = Record<string, unknown>;
+
+/**
+ * 统一分页切片：列表类接口都套这一层，
+ * 保证响应形状与后端契约一致（list / total / pageNum / pageSize / hasNext）。
+ */
+function paginate<T>(all: T[], query: PageQuery): PageResult<T> {
+  const { pageNum, pageSize } = normalizePageQuery(query);
+  const start = (pageNum - 1) * pageSize;
+  const list = all.slice(start, start + pageSize);
+  return {
+    list,
+    total: all.length,
+    pageNum,
+    pageSize,
+    hasNext: start + list.length < all.length
+  };
+}
 
 /** Mock API 入口，签名与真实 request 保持一致 */
 export function mockApi<T>(options: RequestOptions): Promise<T> {
@@ -29,22 +47,22 @@ async function route(options: RequestOptions): Promise<unknown> {
     return { token: `mock-token-${Date.now().toString(36)}` };
   }
 
-  // 列表
+  // 列表（统一分页契约）
   if (path === '/notes' && method === 'GET') {
     const tag = data.tag;
-    const list = DB
+    const all = DB
       .filter((n) => !n.deletedAt)
       .filter((n) => !tag || tag === 'all' || n.tag === tag)
       .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt))
       .map(toListItem);
-    return { list, hasMore: false, cursor: null };
+    return paginate(all, data as PageQuery);
   }
 
-  // 搜索
+  // 搜索（统一分页契约）
   if (path === '/search' && method === 'GET') {
     const q = String(data?.q || '').trim();
-    if (!q) return { list: [], total: 0, hasMore: false, cursor: null };
-    const list = DB
+    if (!q) return paginate([], data as PageQuery);
+    const all = DB
       .filter((n) => !n.deletedAt)
       .filter((n) => n.title.includes(q) || n.body.includes(q))
       .map((n) => ({
@@ -54,7 +72,7 @@ async function route(options: RequestOptions): Promise<unknown> {
           excerpt: highlight(extractExcerpt(n.body, 60), q)
         }
       }));
-    return { list, total: list.length, hasMore: false, cursor: null };
+    return paginate(all, data as PageQuery);
   }
 
   // 标签

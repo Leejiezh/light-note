@@ -4,17 +4,21 @@
 // ============================================================
 
 import { request } from '../request';
+import { normalizePageQuery } from '../pagination';
 import type {
   Note, NoteListItem, PageResult, NoteDraft, NoteQuery,
   CheckUpdateResult, OkResult
 } from '../types';
 
-/** 笔记列表（不返回 body，只返回 excerpt） */
+/**
+ * 笔记列表（不返回 body，只返回 excerpt）
+ * ★ 分页走统一契约：GET 查询串只带 pageNum / pageSize（+ tag 筛选），
+ *   上拉加载看响应里的 hasNext。
+ */
 export function getNotes(params: NoteQuery = {}): Promise<PageResult<NoteListItem>> {
-  return request<PageResult<NoteListItem>>({
-    url: '/notes',
-    data: { tag: params.tag, cursor: params.cursor, limit: params.limit || 20 }
-  });
+  const query: Record<string, string | number> = { ...normalizePageQuery(params) };
+  if (params.tag) query.tag = params.tag;
+  return request<PageResult<NoteListItem>>({ url: '/notes', data: query });
 }
 
 /** 笔记详情（返回完整 Note 含 body、checks） */
