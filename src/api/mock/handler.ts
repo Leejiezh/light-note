@@ -5,10 +5,10 @@
 // ★ 路由表必须与 modules/ 里声明的真实接口一一对应（改接口两边同步）。
 // ============================================================
 
-import { normalizeChecks, extractExcerpt } from '@/utils/markdown';
-import { DB, DICT, nextId, delay, hydrate, toListItem, highlight } from './db';
+import { extractExcerpt } from '@/utils/markdown';
+import { DB, DICT, delay, toListItem, highlight } from './db';
 import { normalizePageQuery } from '../pagination';
-import type { RequestOptions, NoteDraft, PageQuery, PageResult } from '../types';
+import type { RequestOptions, PageQuery, PageResult } from '../types';
 
 type MockData = Record<string, unknown>;
 
@@ -38,24 +38,13 @@ export function mockApi<T>(options: RequestOptions): Promise<T> {
 async function route(options: RequestOptions): Promise<unknown> {
   await delay();
   const method = options.method || 'GET';
-  const data = (options.data ?? {}) as NoteDraft & MockData;
+  const data = (options.data ?? {}) as MockData;
   const path = options.url.split('?')[0];
 
   // 登录（Mock：任意 code 都签发假 token，让登录链路可预览）
   // ★ 与真实后端契约对齐：POST /auth/login
   if (path === '/auth/login' && method === 'POST') {
     return { token: `mock-token-${Date.now().toString(36)}` };
-  }
-
-  // 列表（统一分页契约）
-  if (path === '/notes' && method === 'GET') {
-    const tag = data.tag;
-    const all = DB
-      .filter((n) => !n.deletedAt)
-      .filter((n) => !tag || tag === 'all' || n.tag === tag)
-      .sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (b.updatedAt - a.updatedAt))
-      .map(toListItem);
-    return paginate(all, data as PageQuery);
   }
 
   // 搜索（统一分页契约）
@@ -92,77 +81,7 @@ async function route(options: RequestOptions): Promise<unknown> {
     return items;
   }
 
-  // 详情
-  const detailMatch = path.match(/^\/notes\/([^/]+)$/);
-  if (detailMatch && method === 'GET') {
-    const n = DB.find((x) => x.id === detailMatch[1]);
-    return n ? hydrate(n) : Promise.reject(new Error('笔记不存在'));
-  }
-
-  // 创建
-  if (path === '/notes' && method === 'POST') {
-    const note = {
-      id: nextId(),
-      title: data.title || '',
-      body: data.body || '',
-      tag: data.tag || 'all',
-      checks: data.checks || [],
-      pinned: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    } as (typeof DB)[number];
-    note.checks = normalizeChecks(note.body, note.checks);
-    DB.unshift(note);
-    return note;
-  }
-
-  // 更新勾选 ★ 不更新 updatedAt
-  const checksMatch = path.match(/^\/notes\/([^/]+)\/checks$/);
-  if (checksMatch && method === 'PUT') {
-    const n = DB.find((x) => x.id === checksMatch[1]);
-    if (!n) return Promise.reject(new Error('笔记不存在'));
-    // 校验长度（契约：与 countTodos 一致）
-    n.checks = normalizeChecks(n.body, data.checks);
-    // ★ 不更新 updatedAt
-    return { id: n.id, checks: n.checks };
-  }
-
-  // 恢复
-  const restoreMatch = path.match(/^\/notes\/([^/]+)\/restore$/);
-  if (restoreMatch && method === 'POST') {
-    const n = DB.find((x) => x.id === restoreMatch[1]);
-    if (n) { delete n.deletedAt; n.updatedAt = Date.now(); }
-    return { ok: true };
-  }
-
-  // 更新（全量）
-  if (detailMatch && method === 'PUT') {
-    const n = DB.find((x) => x.id === detailMatch[1]);
-    if (!n) return Promise.reject(new Error('笔记不存在'));
-
-    const bodyChanged = n.body !== data.body;
-
-    Object.assign(n, {
-      title: data.title ?? n.title,
-      body: data.body ?? n.body,
-      tag: data.tag ?? n.tag,
-      updatedAt: Date.now()
-    });
-
-    // ★ 正文变更 → 重置 checks；未变更 → 沿用
-    n.checks = bodyChanged
-      ? normalizeChecks(n.body, undefined)   // 重置
-      : normalizeChecks(n.body, n.checks);
-
-    return hydrate(n);
-  }
-
-  // 删除（软删除）
-  if (detailMatch && method === 'DELETE') {
-    const n = DB.find((x) => x.id === detailMatch[1]);
-    if (n) { n.deletedAt = Date.now(); }
-    return { ok: true };
-  }
+  // ★ 列表 / 详情 / 编辑器统一走 /record，mock 不提供（USE_MOCK 下这些页面不可用）
 
   return Promise.reject(new Error(`未实现的接口: ${method} ${path}`));
 }

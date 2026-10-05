@@ -7,16 +7,14 @@
     @longpress="$emit('longpress', note)"
   >
     <view class="card-head">
-      <!-- 置顶是纯视觉提示（Icon 组件自带 aria-hidden），卡片语义由根节点 aria-label 提供 -->
-      <Icon v-if="note.pinned" name="pin" :size="28" color="var(--brand-500)" />
       <text class="title ellipsis">{{ note.title || '无标题' }}</text>
     </view>
 
-    <text class="excerpt ellipsis-2">{{ note.excerpt || '（空笔记）' }}</text>
+    <text class="excerpt ellipsis-2">{{ excerpt || '（空笔记）' }}</text>
 
     <view class="card-foot">
       <text
-        v-if="note.tag && note.tag !== 'all'"
+        v-if="note.label && note.label !== 'all'"
         class="tag"
         :style="{ color: tagColors.color, background: tagColors.background }"
       >
@@ -29,26 +27,28 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import Icon from '@/components/Icon.vue';
-import type { NoteListItem } from '@/api';
+import type { RecordVO } from '@/api';
 import { readTagLabel, readTagColors } from '@/utils/store/tags';
 
 const props = defineProps<{
-  note: NoteListItem;
+  note: RecordVO;
 }>();
 
 defineEmits<{
   (e: 'open', id: string): void;
-  (e: 'longpress', note: NoteListItem): void;
+  (e: 'longpress', note: RecordVO): void;
 }>();
 
-/** 标签名与配色统一来自字典（GET /dict/note_label） */
-const tagLabel = computed(() => readTagLabel(props.note.tag));
-const tagColors = computed(() => readTagColors(props.note.tag));
+/** 摘要：content 归并空白（与后端列表 excerpt 同一规则） */
+const excerpt = computed(() => (props.note.content || '').replace(/\s+/g, ' ').trim());
 
-/** 相对时间 */
+/** 标签名与配色统一来自字典（GET /dict/note_label） */
+const tagLabel = computed(() => readTagLabel(props.note.label));
+const tagColors = computed(() => readTagColors(props.note.label));
+
+/** 相对时间（updatedAt 是 ISO 串，先转时间戳） */
 const relTime = computed(() => {
-  const t = props.note.updatedAt;
+  const t = Date.parse(props.note.updatedAt);
   if (!t) return '';
   const diff = Date.now() - t;
   const min = 60 * 1000;

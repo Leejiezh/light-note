@@ -64,12 +64,12 @@ import { onShow, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import NoteCard from '@/components/NoteCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
-import { getNotes, DEFAULT_PAGE_SIZE } from '@/api';
-import type { NoteListItem } from '@/api';
+import { pageRecords, deleteRecord, DEFAULT_PAGE_SIZE } from '@/api';
+import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagDict } from '@/utils/store/tags';
 
-const notes = ref<NoteListItem[]>([]);
+const notes = ref<RecordVO[]>([]);
 const loading = ref(false);       // 首屏 / 下拉刷新
 const loadingMore = ref(false);   // 上拉加载下一页
 const activeTag = ref('all');
@@ -107,8 +107,9 @@ async function load(mode: 'reset' | 'more' = 'reset') {
   ensureTagDict().catch(() => {});
 
   try {
-    const res = await getNotes({
-      tag: activeTag.value,
+    const res = await pageRecords({
+      // 「全部」不下发 label，后端不过滤
+      label: activeTag.value === 'all' ? undefined : activeTag.value,
       pageNum: targetPage,
       pageSize: DEFAULT_PAGE_SIZE
     });
@@ -145,7 +146,7 @@ function goCreate() {
   uni.navigateTo({ url: '/pages/editor/editor' });
 }
 
-function onLongPress(note: NoteListItem) {
+function onLongPress(note: RecordVO) {
   uni.showActionSheet({
     itemList: ['删除笔记'],
     success: ({ tapIndex }) => {
@@ -154,17 +155,20 @@ function onLongPress(note: NoteListItem) {
   });
 }
 
-function confirmDelete(note: NoteListItem) {
+async function confirmDelete(note: RecordVO) {
   uni.showModal({
     title: '删除笔记',
-    content: `「${note.title || '无标题'}」将被移入回收站，30 天后永久清除。`,
+    content: `「${note.title || '无标题'}」将被永久删除，无法恢复。`,
     confirmText: '删除',
     confirmColor: '#EF4444',
-    success: ({ confirm }) => {
-      if (confirm) {
-        // 骨架阶段仅提示，真实实现调 deleteNote
-        uni.showToast({ title: '已移入回收站', icon: 'none' });
+    success: async ({ confirm }) => {
+      if (!confirm) return;
+      try {
+        await deleteRecord(note.id);
         notes.value = notes.value.filter((x) => x.id !== note.id);
+        uni.showToast({ title: '已删除', icon: 'none' });
+      } catch (e) {
+        uni.showToast({ title: errorMessage(e, '删除失败'), icon: 'none' });
       }
     }
   });

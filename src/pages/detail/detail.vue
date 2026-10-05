@@ -2,14 +2,14 @@
   <view class="page">
     <view v-if="loading" class="loading">加载中…</view>
 
-    <template v-else-if="note">
+    <template v-else-if="record">
       <!-- 标题 -->
-      <text class="title">{{ note.title || '无标题' }}</text>
+      <text class="title">{{ record.title || '无标题' }}</text>
 
       <!-- 元信息 -->
       <view class="meta">
         <text
-          v-if="note.tag && note.tag !== 'all'"
+          v-if="record.label && record.label !== 'all'"
           class="tag"
           :style="{ color: tagColors.color, background: tagColors.background }"
         >
@@ -43,12 +43,8 @@
             @tap="onPreviewImage(seg.src)"
           />
 
-          <!-- 待办段：自定义组件，事件可挂载 ★ -->
-          <TodoList
-            v-else-if="seg.type === 'todo'"
-            :items="seg.items"
-            @toggle="(ti) => onToggle(si, ti)"
-          />
+          <!-- 待办段：新后端不存 checks，旧 markdown 待办只读展示（不可勾选） -->
+          <TodoList v-else-if="seg.type === 'todo'" :items="seg.items" />
         </template>
       </view>
 
@@ -56,9 +52,9 @@
         图片附件：后端 /record 的 images 独立于正文存储（编辑器两段式上传），
         与正文图片段一样用原生 <image> 渲染，点一下可全屏预览。
       -->
-      <view v-if="note.images?.length" class="attachments">
+      <view v-if="record.images?.length" class="attachments">
         <image
-          v-for="(src, i) in note.images"
+          v-for="(src, i) in record.images"
           :key="i"
           class="md-image"
           :src="src"
@@ -82,31 +78,31 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import TodoList from '@/components/TodoList.vue';
-import { parseToSegments, collectChecks } from '@/utils/markdown';
+import { parseToSegments } from '@/utils/markdown';
 import type { Segment } from '@/utils/markdown';
-import { getNote, updateChecks, deleteNote } from '@/api';
-import type { Note } from '@/api';
+import { getRecord, deleteRecord } from '@/api';
+import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagLabel, readTagColors } from '@/utils/store/tags';
 
 const NOTE_ID = ref('');
-const note = ref<Note | null>(null);
+const record = ref<RecordVO | null>(null);
 const segments = ref<Segment[]>([]);
 const loading = ref(true);
 
 /** 标签名与配色统一来自字典（GET /dict/note_label） */
-const tagLabel = computed(() => readTagLabel(note.value?.tag || ''));
-const tagColors = computed(() => readTagColors(note.value?.tag || ''));
+const tagLabel = computed(() => readTagLabel(record.value?.label || ''));
+const tagColors = computed(() => readTagColors(record.value?.label || ''));
 
 /**
  * 时间展示：优先「记录日期」（后端 recordDate，支持补记），
  * 旧数据没有时退回 updatedAt 的完整时间。
  */
 const displayTime = computed(() => {
-  if (note.value?.recordDate) return note.value.recordDate;
-  return formatTime(note.value?.updatedAt || 0);
+  if (record.value?.recordDate) return record.value.recordDate;
+  return formatTime(record.value?.updatedAt || '');
 });
 
 onLoad((query?: Record<string, string | undefined>) => {
@@ -124,52 +120,19 @@ onShow(() => {
 
 async function load() {
   // 仅首屏显示全屏加载态；返回刷新时保留旧内容，静默更新，避免闪烁
-  if (!note.value) loading.value = true;
+  if (!record.value) loading.value = true;
   // 标签字典与正文并行加载：不阻塞正文渲染，失败静默降级
   ensureTagDict().catch(() => {});
   try {
-    const res = await getNote(NOTE_ID.value);
-    note.value = res;
-    // ★ 分段：待办段单独渲染，其余交给 rich-text
-    segments.value = parseToSegments(res.body, res.checks);
+    const res = await getRecord(NOTE_ID.value);
+    record.value = res;
+    // ★ 分段：新后端不存 checks，旧 markdown 待办按未勾选只读展示
+    segments.value = parseToSegments(res.content, []);
   } catch (e) {
     uni.showToast({ title: errorMessage(e, '加载失败'), icon: 'none' });
   } finally {
     loading.value = false;
   }
-}
-
-/**
- * 勾选待办 ★
- *
- * 注意这里的三步：
- *   1. 只改这一项（不整体重算 segments）
- *   2. 同步回全篇 checks（保持契约）
- *   3. 防抖后调专用接口（不更新 updatedAt）
- */
-function onToggle(segIndex: number, itemIndex: number) {
-  const seg = segments.value[segIndex];
-  if (!seg || seg.type !== 'todo') return;
-  const item = seg.items[itemIndex];
-  if (!item) return;
-  item.checked = !item.checked;
-
-  const checks = collectChecks(segments.value);
-  debouncedSave(checks);
-}
-
-/** 防抖保存：勾选是高频操作，别每次点都打接口 */
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-function debouncedSave(checks: boolean[]) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      // ★ 仅更新 checks，不更新 updatedAt、不重算 excerpt
-      await updateChecks(NOTE_ID.value, checks);
-    } catch (e) {
-      uni.showToast({ title: '同步失败', icon: 'none' });
-    }
-  }, 600);
 }
 
 function goEdit() {
@@ -183,11 +146,11 @@ function goEdit() {
  * 预览器由系统渲染，相册选出的本机图片在这里一定能正常显示。
  */
 function onPreviewImage(src: string) {
-  // 正文图片段 + 后端附件图（note.images）合并，预览器里可连续翻
+  // 正文图片段 + 后端附件图（record.images）合并，预览器里可连续翻
   const segImgs = segments.value
     .filter((s): s is Extract<Segment, { type: 'image' }> => s.type === 'image' && !!s.src)
     .map((s) => s.src);
-  const urls = [...segImgs, ...(note.value?.images || [])];
+  const urls = [...segImgs, ...(record.value?.images || [])];
   if (!urls.length) return;
 
   uni.previewImage({
@@ -200,14 +163,14 @@ function onPreviewImage(src: string) {
 function onDelete() {
   uni.showModal({
     title: '删除笔记',
-    content: '删除后可在回收站恢复，30 天后永久清除。',
+    content: '删除后将永久清除，无法恢复。',
     confirmText: '删除',
     confirmColor: '#EF4444',
     success: async ({ confirm }) => {
       if (!confirm) return;
       try {
-        await deleteNote(NOTE_ID.value);
-        uni.showToast({ title: '已移入回收站', icon: 'none' });
+        await deleteRecord(NOTE_ID.value);
+        uni.showToast({ title: '已删除', icon: 'none' });
         setTimeout(() => uni.navigateBack(), 600);
       } catch (e) {
         uni.showToast({ title: '删除失败', icon: 'none' });
@@ -216,21 +179,13 @@ function onDelete() {
   });
 }
 
-function formatTime(t: number) {
-  if (!t) return '';
-  const d = new Date(t);
+function formatTime(iso: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-
-// 离开页面时，若还有未保存的勾选，立即提交
-onUnload(() => {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    const checks = collectChecks(segments.value);
-    updateChecks(NOTE_ID.value, checks).catch(() => {});
-  }
-});
 </script>
 
 <style lang="scss" scoped>

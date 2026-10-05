@@ -301,7 +301,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import Icon from '@/components/Icon.vue';
-import { getNotes, getTags, isLoggedIn, ensureLogin, logout, presignImage, uploadToMinio, getProfile, updateProfile } from '@/api';
+import { pageRecords, getTags, isLoggedIn, ensureLogin, logout, presignImage, uploadToMinio, getProfile, updateProfile } from '@/api';
 import {
   readProfile,
   writeProfile,
@@ -611,10 +611,10 @@ const themeLabel = computed(() => (theme.value === 'dark' ? '深色' : '浅色')
 
 async function load() {
   try {
-    const [notesRes, tagsRes] = await Promise.all([getNotes({}), getTags()]);
+    const [recordsRes, tagsRes] = await Promise.all([pageRecords({}), getTags()]);
     stats.value = {
       // 分页响应自带总条数，不要用当前页的 list.length
-      total: notesRes.total ?? (notesRes.list || []).length,
+      total: recordsRes.total ?? (recordsRes.list || []).length,
       done: 0, // 骨架阶段：真实实现需从各笔记 checks 汇总
       tags: (tagsRes.list || []).length
     };

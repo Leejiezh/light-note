@@ -15,7 +15,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 export interface RequestOptions {
   url: string;
   method?: HttpMethod;
-  /** 请求参数 / 请求体；领域 DTO（NoteDraft 等）直接可传 */
+  /** 请求参数 / 请求体；领域 DTO（RecordDraft 等）直接可传 */
   data?: object | null;
   header?: Record<string, string>;
 }
@@ -181,23 +181,7 @@ export interface PresignResp {
   expiresAt?: number;
 }
 
-/** 勾选状态更新响应（§5.2：不更新 updatedAt、不重算 excerpt） */
-export interface CheckUpdateResult {
-  id: string;
-  checks: boolean[];
-}
-
-/** 通用 ok 响应（删除 / 恢复等） */
-export interface OkResult {
-  ok: boolean;
-}
-
 // ---------- 查询 / 写入参数 ----------
-
-/** 笔记列表查询参数（分页 + 标签筛选） */
-export interface NoteQuery extends PageQuery {
-  tag?: string;
-}
 
 /** 搜索查询参数（分页 + 关键词 / 标签） */
 export interface SearchQuery extends PageQuery {
@@ -207,17 +191,7 @@ export interface SearchQuery extends PageQuery {
   tag?: string;
 }
 
-/** 笔记写入载荷（创建 / 更新共用；tag 缺省 'all'） */
-export interface NoteDraft {
-  title?: string;
-  body?: string;
-  tag?: string;
-  checks?: boolean[];
-  /** 客户端便利字段：编辑器用与渲染同源的规则生成；后端可忽略自行重算 */
-  excerpt?: string;
-}
-
-// ---------- 记录（后端 Record 契约，编辑器使用；与过渡形态的 Note 并存） ----------
+// ---------- 记录（后端 Record 契约；列表 / 详情 / 编辑器统一使用） ----------
 
 /**
  * 记录详情（GET /record/{id} 的 data）。
