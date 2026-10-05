@@ -21,6 +21,7 @@ export {
   updateChecks, deleteNote, restoreNote
 } from './modules/note';
 export { getTags } from './modules/tag';
+export { createRecord, getRecord, updateRecord, pageRecords } from './modules/record';
 export { search } from './modules/search';
 export { getDictItems, getNoteLabels, NOTE_LABEL_TYPE_CODE } from './modules/dict';
 export { presignImage, uploadToMinio, getFileUrl } from './modules/file';
@@ -31,5 +32,6 @@ export type {
   PageQuery, PageResult, SearchResult, SearchHit, SearchQuery,
   TagItem, DictItem, DictItemExtra, LoginResult, CheckUpdateResult, OkResult,
   UserProfile, UserProfileDraft, PresignResp,
+  RecordVO, RecordDraft, RecordPageQuery,
   RequestOptions, HttpMethod, ApiEnvelope
 } from './types';

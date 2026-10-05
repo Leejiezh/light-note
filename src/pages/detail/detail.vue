@@ -15,7 +15,7 @@
         >
           {{ tagLabel }}
         </text>
-        <text class="time">{{ formatTime(note.updatedAt) }}</text>
+        <text class="time">{{ displayTime }}</text>
       </view>
 
       <!-- 正文：分段渲染 ★ -->
@@ -52,6 +52,21 @@
         </template>
       </view>
 
+      <!--
+        图片附件：后端 /record 的 images 独立于正文存储（编辑器两段式上传），
+        与正文图片段一样用原生 <image> 渲染，点一下可全屏预览。
+      -->
+      <view v-if="note.images?.length" class="attachments">
+        <image
+          v-for="(src, i) in note.images"
+          :key="i"
+          class="md-image"
+          :src="src"
+          mode="widthFix"
+          @tap="onPreviewImage(src)"
+        />
+      </view>
+
       <!-- 底部操作 -->
       <view class="actions">
         <view class="btn btn-ghost touch-target" role="button" aria-label="编辑笔记" @tap="goEdit">
@@ -67,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import TodoList from '@/components/TodoList.vue';
 import { parseToSegments, collectChecks } from '@/utils/markdown';
 import type { Segment } from '@/utils/markdown';
@@ -85,13 +100,31 @@ const loading = ref(true);
 const tagLabel = computed(() => readTagLabel(note.value?.tag || ''));
 const tagColors = computed(() => readTagColors(note.value?.tag || ''));
 
-onLoad(async (query?: Record<string, string | undefined>) => {
+/**
+ * 时间展示：优先「记录日期」（后端 recordDate，支持补记），
+ * 旧数据没有时退回 updatedAt 的完整时间。
+ */
+const displayTime = computed(() => {
+  if (note.value?.recordDate) return note.value.recordDate;
+  return formatTime(note.value?.updatedAt || 0);
+});
+
+onLoad((query?: Record<string, string | undefined>) => {
   NOTE_ID.value = query?.id || '';
-  await load();
+});
+
+/**
+ * ★ 每次显示都重新拉取最新数据：
+ * onLoad 只在页面首次创建时触发一次，从编辑器保存返回走的是 onShow，
+ * 不刷新的话详情页会一直显示编辑前的旧内容。
+ */
+onShow(() => {
+  if (NOTE_ID.value) load();
 });
 
 async function load() {
-  loading.value = true;
+  // 仅首屏显示全屏加载态；返回刷新时保留旧内容，静默更新，避免闪烁
+  if (!note.value) loading.value = true;
   // 标签字典与正文并行加载：不阻塞正文渲染，失败静默降级
   ensureTagDict().catch(() => {});
   try {
@@ -150,9 +183,11 @@ function goEdit() {
  * 预览器由系统渲染，相册选出的本机图片在这里一定能正常显示。
  */
 function onPreviewImage(src: string) {
-  const urls = segments.value
+  // 正文图片段 + 后端附件图（note.images）合并，预览器里可连续翻
+  const segImgs = segments.value
     .filter((s): s is Extract<Segment, { type: 'image' }> => s.type === 'image' && !!s.src)
     .map((s) => s.src);
+  const urls = [...segImgs, ...(note.value?.images || [])];
   if (!urls.length) return;
 
   uni.previewImage({

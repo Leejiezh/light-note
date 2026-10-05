@@ -336,6 +336,8 @@ async function doLogin() {
     logged.value = true;
     uni.showToast({ title: '登录成功', icon: 'success' });
     load();
+    // 刚登录，立即拉一次云端资料回显
+    loadCloudProfile();
   } catch (e) {
     uni.showToast({ title: errorMessage(e, '登录失败，请稍后再试'), icon: 'none' });
   } finally {
@@ -372,8 +374,15 @@ const draftAvatarKey = ref('');
 const draftAvatarLocalPath = ref('');
 const uploading = ref(false);
 
-/** 拉云端资料里的头像；失败静默回落渐变底，不打断页面 */
-async function loadCloudAvatar() {
+/**
+ * 拉云端资料并回显到页面；失败静默回落本地存储，不打断页面。
+ *
+ * 登录态下云端是数据源：nickname / signature / email / location 直接合并进浏览态
+ * （云端字段为空时保留本地值，避免整块空白），并写回本地缓存，让冷启动首屏
+ * 和弱网降级都有内容可看。本地 `avatar` 预设色与云端头像 objectKey / 现签 URL
+ * 分属两套概念，各自维护；现签 avatarUrl 会过期，绝不落盘。
+ */
+async function loadCloudProfile() {
   if (!isLoggedIn()) {
     backendAvatarUrl.value = '';
     cloudAvatarKey.value = '';
@@ -383,8 +392,24 @@ async function loadCloudAvatar() {
     const p = await getProfile();
     cloudAvatarKey.value = p.avatarKey || '';
     backendAvatarUrl.value = p.avatarUrl || '';
+    if (!editing.value) {
+      const merged: Profile = {
+        ...profile.value,
+        nickname: p.nickname || profile.value.nickname,
+        signature: p.signature || profile.value.signature,
+        email: p.email || profile.value.email,
+        location: p.location || profile.value.location
+      };
+      profile.value = merged;
+      // 写缓存失败不影响页面展示，静默即可
+      try {
+        writeProfile(merged);
+      } catch (e) {
+        // 存储不可用（极端隐私模式），跳过
+      }
+    }
   } catch (e) {
-    // 头像拉不到就展示渐变底，不值得报错打扰
+    // 云端拉不到就回落本地资料，不值得报错打扰
   }
 }
 
@@ -561,7 +586,7 @@ async function save() {
           location: res.profile.location,
           avatarUrl: draftAvatarKey.value || cloudAvatarKey.value
         });
-        await loadCloudAvatar();
+        await loadCloudProfile();
       } catch (e) {
         cloudOk = false;
       }
@@ -634,8 +659,8 @@ onShow(() => {
   if (!editing.value) profile.value = readProfile();
   // 登录态可能被启动静默登录 / 401 自动重登改变，同步一次
   logged.value = isLoggedIn();
-  // 头像访问 URL 会过期，每次回页重新签
-  loadCloudAvatar();
+  // 头像访问 URL 会过期，每次回页重新签；同时把云端资料字段回显到页面
+  loadCloudProfile();
 });
 </script>
 

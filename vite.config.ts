@@ -3,6 +3,11 @@ import uni from '@dcloudio/vite-plugin-uni';
 
 export default defineConfig({
   plugins: [uni()],
+  server: {
+    // 监听 0.0.0.0，允许手机等局域网设备访问（H5 真机预览）
+    host: true,
+    port: 5173,
+  },
   css: {
     preprocessorOptions: {
       scss: {

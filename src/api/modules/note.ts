@@ -4,26 +4,63 @@
 // ============================================================
 
 import { request } from '../request';
-import { normalizePageQuery } from '../pagination';
+import { pageRecords, getRecord } from './record';
 import type {
   Note, NoteListItem, PageResult, NoteDraft, NoteQuery,
-  CheckUpdateResult, OkResult
+  RecordVO, CheckUpdateResult, OkResult
 } from '../types';
 
 /**
  * 笔记列表（不返回 body，只返回 excerpt）
- * ★ 分页走统一契约：GET 查询串只带 pageNum / pageSize（+ tag 筛选），
+ * ★ 底层已切到真实后端 GET /record/page，RecordVO 就地映射成 NoteListItem；
+ *   tag='all' 是前端「全部」筛选项，不属于字典，不下发。
  *   上拉加载看响应里的 hasNext。
  */
 export function getNotes(params: NoteQuery = {}): Promise<PageResult<NoteListItem>> {
-  const query: Record<string, string | number> = { ...normalizePageQuery(params) };
-  if (params.tag) query.tag = params.tag;
-  return request<PageResult<NoteListItem>>({ url: '/notes', data: query });
+  const label = params.tag && params.tag !== 'all' ? params.tag : undefined;
+  return pageRecords({
+    pageNum: params.pageNum,
+    pageSize: params.pageSize,
+    label
+  }).then((page) => ({
+    ...page,
+    list: page.list.map(toNoteListItem)
+  }));
 }
 
-/** 笔记详情（返回完整 Note 含 body、checks） */
+/** RecordVO → 列表项：excerpt 由 content 归并空白得到，时间从 ISO 串解析 */
+function toNoteListItem(vo: RecordVO): NoteListItem {
+  return {
+    id: vo.id,
+    title: vo.title,
+    excerpt: (vo.content || '').replace(/\s+/g, ' ').trim(),
+    tag: vo.label || '',
+    pinned: false,
+    createdAt: Date.parse(vo.createdAt) || 0,
+    updatedAt: Date.parse(vo.updatedAt) || 0
+  };
+}
+
+/**
+ * 笔记详情 ★ 已切到真实后端 GET /record/getDetail/{id}（接口 ID 521392835）
+ * RecordVO 就地映射成 Note：
+ *   - content → body（新编辑器为纯文本，旧 markdown 数据仍可分段渲染）
+ *   - images 是后端换签的访问 URL（会过期，仅用于展示，不持久化）
+ *   - 新后端不存 checks，传空数组（旧 markdown 数据的待办只读、不可勾）
+ */
 export function getNote(id: string): Promise<Note> {
-  return request<Note>({ url: `/notes/${id}` });
+  return getRecord(id).then((vo) => ({
+    id: vo.id,
+    title: vo.title,
+    body: vo.content,
+    checks: [],
+    images: vo.images || [],
+    recordDate: vo.recordDate,
+    tag: vo.label || '',
+    pinned: false,
+    createdAt: Date.parse(vo.createdAt) || 0,
+    updatedAt: Date.parse(vo.updatedAt) || 0
+  }));
 }
 
 /** 创建笔记 */

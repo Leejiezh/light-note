@@ -32,7 +32,7 @@ export function clearLogin(): void {
   uni.removeStorageSync(TOKEN_KEY);
 }
 
-/** 取微信临时登录凭证 code（一次性，5 分钟有效） */
+/** 取微信临时登录凭证 code（一次性，5 分钟有效）。仅小程序端使用；H5 预览走 dev-token，见 loginWithCode。 */
 function getWxCode(): Promise<string> {
   // #ifdef MP-WEIXIN
   return new Promise((resolve, reject) => {
@@ -43,19 +43,10 @@ function getWxCode(): Promise<string> {
     });
   });
   // #endif
-  // #ifdef H5
-  // H5 预览端没有 wx.login，给占位 code 让链路可预览（真实后端会拒绝）
-  return Promise.resolve('h5-preview-code');
-  // #endif
 }
 
-/**
- * 微信登录：code 换 token
- * ★ 后端契约为 POST /auth/login { code } → { code: 200, data: { token }, msg }；
- *   统一包装已在 client 层剥壳，这里拿到的直接是 data（{ token }）。
- *   登录直接走传输层 send —— 不带 Authorization、401 也不会重试（防死循环）。
- */
-async function loginWithCode(): Promise<string> {
+/** 小程序端登录：wx.login 换 code → POST /auth/login 换 token */
+async function wxLogin(): Promise<string> {
   const code = await getWxCode();
   const res = await send({ method: 'POST', url: '/auth/login', data: { code } });
   const parsed = parseResponse<LoginResult>(res);
@@ -63,6 +54,30 @@ async function loginWithCode(): Promise<string> {
   if (!parsed.data?.token) throw new Error('登录响应缺少 token');
   uni.setStorageSync(TOKEN_KEY, parsed.data.token);
   return parsed.data.token;
+}
+
+/** H5 预览登录：没有 wx.login，直接 GET /auth/dev-token 签发 dev token（仅后端 dev profile 存在） */
+async function h5Login(): Promise<string> {
+  const res = await send({ method: 'GET', url: '/auth/dev-token', data: { userId: 1 } });
+  const parsed = parseResponse<string>(res);
+  if (!parsed.ok) throw new Error(parsed.message);
+  if (!parsed.data) throw new Error('dev-token 响应缺少 token');
+  uni.setStorageSync(TOKEN_KEY, parsed.data);
+  return parsed.data;
+}
+
+/**
+ * 登录并落 token。按平台分发：小程序走 wxLogin，H5 预览走 h5Login。
+ * ★ 统一包装已在 client 层剥壳，这里拿到的直接是 data（token）。
+ *   登录直接走传输层 send —— 不带 Authorization、401 也不会重试（防死循环）。
+ */
+async function loginWithCode(): Promise<string> {
+  // #ifdef MP-WEIXIN
+  return wxLogin();
+  // #endif
+  // #ifdef H5
+  return h5Login();
+  // #endif
 }
 
 /** 并发锁：启动登录与 401 重放共用，避免并发时重复消费 code */

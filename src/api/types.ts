@@ -39,9 +39,13 @@ export interface Note {
   id: string;
   title: string;
   body: string;
-  tag: string;
   /** 待办勾选状态，长度恒等于正文待办项数量（见 markdown 模块的不变式） */
   checks: boolean[];
+  /** 图片访问 URL（后端 /record 读时换签，会过期，仅展示用） */
+  images?: string[];
+  /** 记录日期 yyyy-MM-dd（支持补记；旧 /notes 数据无此字段） */
+  recordDate?: string;
+  tag: string;
   pinned: boolean;
   createdAt: number;
   updatedAt: number;
@@ -211,4 +215,51 @@ export interface NoteDraft {
   checks?: boolean[];
   /** 客户端便利字段：编辑器用与渲染同源的规则生成；后端可忽略自行重算 */
   excerpt?: string;
+}
+
+// ---------- 记录（后端 Record 契约，编辑器使用；与过渡形态的 Note 并存） ----------
+
+/**
+ * 记录详情（GET /record/{id} 的 data）。
+ * images 是后端读时换签的访问 URL（会过期，仅用于展示），不是 objectKey。
+ */
+export interface RecordVO {
+  /** 雪花 Long 主键，后端按字符串序列化（JSON 数字会超出 JS 精度，见 JacksonConfig） */
+  id: string;
+  /** 标题（空串 = 无标题） */
+  title: string;
+  /** 标签 dict key（未分类为 null / 空） */
+  label: string;
+  /** 文字内容（可空串：只有标题的笔记正文为空） */
+  content: string;
+  /** 图片访问 URL 数组（读时签发，仅展示用） */
+  images: string[];
+  /** 记录日期 yyyy-MM-dd */
+  recordDate: string;
+  /** 创建时间 ISO 串 */
+  createdAt: string;
+  /** 更新时间 ISO 串 */
+  updatedAt: string;
+}
+
+/**
+ * 记录分页查询（GET /record/page）。
+ * label 空 = 不过滤（「全部」由前端消化，不下发）。
+ */
+export interface RecordPageQuery extends PageQuery {
+  label?: string;
+}
+
+/**
+ * 记录写入载荷（对齐后端 RecordCreateReq / RecordUpdateReq）。
+ * images 是 objectKey 数组；PUT 时传 null 表示不动附件、传 [] 表示清空。
+ */
+export interface RecordDraft {
+  title?: string;
+  /** 未分类传 null / 省略（后端 label 列可空） */
+  label?: string | null;
+  content: string;
+  images?: string[];
+  /** 记录日期 yyyy-MM-dd（后端必填，前端默认当天） */
+  recordDate: string;
 }

@@ -34,20 +34,17 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 
 小程序里 `page` 默认无高度，父容器只写 `min-height` 时子元素的 `flex: 1` **会失效**（表现为内容只占半屏）。要撑满请用 `height: 100vh` + `box-sizing: border-box`。
 
-### 3. 编辑器（`src/pages/editor/editor.vue`）有一组不可回退的约定
+### 3. 编辑器（`src/pages/editor/editor.vue`）的约定（2026-10-05 起为社交式排版，已去 Markdown）
 
-- **正文不要改回 `flex: 1` 铺满整屏**。文字下方必须留出**不属于 `textarea`** 的空白区（`.blank`），否则「点空白收键盘」永久失效——原生组件内部点击只会移动光标，不会失焦
-- **不要给 `textarea` 绑 `@confirm` 收键盘**。`confirm-type="return"` 才能拿到「换行」键；绑了 `@confirm` 会让按换行时触发事件把键盘收掉，等于变回「完成」
-- 收键盘只有两个入口：工具栏右侧「收起」按钮 + 正文下方空白区
-- `textarea` 需要 `hold-keyboard`，否则点工具栏按钮会先把键盘顶掉
-- 工具栏是 `position: fixed; bottom: var(--kb)` 的固定层（键盘高度由 JS 写入 CSS 变量），不是页面底部的一行
-- **行内格式（B / I / S / 代码）是「开关式挂起格式」，不是插模板文字**：点一下按钮变实心（开启），再点一下才把「开启到现在输入的这段」包上标记。**不要改回「点一下插 `**加粗文字**`」**，那正是被废弃的旧行为
-- 行内格式的标记符只在 `rules.ts` 的 `INLINE_FORMATS` 里定义，**必须与同文件 `INLINE_MARKERS` 的正则保持一致**（有单测锁这条不变式）；包裹区间的数学在 `format.ts`
-- `closeInlineFormat(reposition)`：只有「用户主动关格式」才传 `true`；**收起键盘 / 失焦 / 保存三处必须传 `false`**，否则光标复位会重新 focus，把键盘拉回来、把「收起」抵掉
-- 读选区靠 `wx.getSelectedTextRange`（要 focus，所以 `hold-keyboard` 不能删）；取不到时静默降级为「从光标处开始加粗」，不要让功能直接报错
-- **图片按钮调起本机相册，不是插模板**：点「图片」走 `uni.chooseMedia`（小程序）/ `uni.chooseImage`（H5），选中后必须 `fs.saveFile` 落盘再插入真实路径。**不要把 `![图片描述](图片链接)` 加回 `TOOLBAR_SNIPPETS`**，那是被废弃的旧行为
-- 图片插入要用 `format.ts` 的 `insertImageBlock`（保证独占一行）；详情页把「整行就是一张图」的行切成 `image` 段，用**原生 `<image>`** 渲染 —— rich-text 的 `<img>` 对本机路径不可靠
-- `isSafeUrl(url, { media: true })` 才放行 `wxfile:` / `blob:`；**链接仍然只认 http/https/mailto，`data:` 一律不放行**（所以不要用 base64 存图）
+编辑器是「一张白纸」排版：顶栏（取消/标题/保存胶囊）+ 大标题 + 彩色标签胶囊行 + 正文 + 底部图盘。**不再支持 Markdown**——正文是纯文本，无格式工具栏 / 光标魔法 / 待办勾选（`checks` 只存在于旧数据，新编辑器不再产生）。
+
+- **正文不要直接 `flex: 1` 铺满**。外层 `.body-wrap` 才是 `flex: 1; min-height: 0` 的 scroll-view，里面放 auto-height `textarea` + 下方的 `.blank` 空白区，否则「点空白收键盘」永久失效——原生组件内部点击只会移动光标，不会失焦
+- **不要给 `textarea` 绑 `@confirm` 收键盘**。`confirm-type="return"` 保证「换行」；收键盘靠正文下方空白区（点图盘 / 保存 / 取消时也会自然收起）
+- 页面 `height: 100vh` flex 纵向排布；键盘高度由 JS 写入 CSS 变量 `--kb`（`onKeyboardHeightChange` + focus 兜底），`.page` 的 `padding-bottom: calc(var(--kb) + safe-area + …)` 让底部图盘随键盘顶起
+- **保存走后端 RecordController，不走 /notes**：新建 `POST /record`、编辑加载 `GET /record/{id}`、编辑保存 `PUT /record`。载荷 `RecordDraft = { title, label, content, images(objectKey[]), recordDate }`（`src/api/modules/record.ts`）
+- **标题是后端独立 `title` 字段**（空串 = 无标题）；标签未分类传 `label: null`
+- **图片上传两段式**：`chooseMedia`/`chooseImage` → `presignImage` → `uploadToMinio` 直传 → 存 objectKey，本地路径只做预览。编辑加载时 `images` 是访问 URL，用 `parseObjectKey` 反推回 objectKey 再提交；反推不出就整体不提交 `images`，让后端保留旧图
+- 标签选项与配色统一来自字典（`readTagDict` / `readTagColor`）；选中胶囊实心填充标签自己的颜色
 
 ### 4. 待办必须用原生组件
 
@@ -79,7 +76,7 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 - 上拉加载是 `if (hasNext) pageNum++` 再请求，**不要自己算总页数，也不要引入 cursor / offset**
 - 默认值与上限的归一化只在 `src/api/pagination.ts`（`normalizePageQuery`），真实接口与 mock 共用；**不要在各页面里手写分页参数**
 - "共 N 条"这类总数文案用响应里的 `total`，**不要用当前页的 `list.length`**
-- 后端的业务 VO（`RecordVO` / `ReportVO`）字段未冻结，本项目当前的 `Note` / `NoteListItem` 是过渡形态，对齐前先确认
+- 后端的业务 VO（`RecordVO` / `ReportVO`）字段未冻结，本项目当前的 `Note` / `NoteListItem` 是过渡形态，对齐前先确认。**编辑器已对齐后端 `/record`**（`RecordDraft`/`RecordVO`，含 `title` 字段，见 `src/api/modules/record.ts`）；列表 / 详情 / 搜索仍走过渡的 `/notes`，迁 `/record` 前先确认分页筛选（后端 `RecordController.page` 暂不支持按标签过滤）与字段映射
 
 ### 10. 标签字典只在冷启动拉一次
 
