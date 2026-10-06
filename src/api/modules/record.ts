@@ -6,7 +6,8 @@
 //   GET    /record/getDetail/{id}  详情 → R<RecordVO>（images 已换签为访问 URL）
 //   PUT    /record/update          更新 → R<Void>（images 传 null 不动、[] 清空）
 //   GET    /record/page            分页 → R<PageResult<RecordVO>>（label 筛选，空=不过滤）
-//   DELETE /record/{id}            删除（物理删除，无回收站）
+//   DELETE /record/{id}            删除 → 移入回收站（置 recycled_at，不删图片）
+//   DELETE /recycle/{id}           彻底删除（仅回收站内记录；图片进入 24h 宽限期后清理）
 //
 // 列表 / 详情 / 编辑器统一走本模块；note.ts 过渡层已删除。
 // ============================================================
@@ -25,7 +26,7 @@ export function getRecord(id: string): Promise<RecordVO> {
   return request<RecordVO>({ url: `/record/getDetail/${id}` });
 }
 
-/** 删除记录：DELETE /record/{id}（物理删除，后端无回收站，不可恢复） */
+/** 删除记录：DELETE /record/{id}（移入回收站，图片保留可完整恢复；彻底删除走 DELETE /recycle/{id}） */
 export function deleteRecord(id: string): Promise<void> {
   return request<void>({ method: 'DELETE', url: `/record/${id}` });
 }

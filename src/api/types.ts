@@ -214,6 +214,8 @@ export interface RecordVO {
   createdAt: string;
   /** 更新时间 ISO 串 */
   updatedAt: string;
+  /** 进回收站时间 ISO 串（仅回收站接口返回；正常记录恒为缺省） */
+  recycledAt?: string;
 }
 
 /**

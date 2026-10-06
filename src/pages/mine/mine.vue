@@ -467,8 +467,9 @@ function chooseAvatarImage(): Promise<{ path: string; size: number }> {
         mediaType: ['image'],
         sizeType: ['compressed'],
         success: (res) => {
-          const f = res.tempFiles && res.tempFiles[0];
-          done(f ? f.tempFilePath : '', f ? f.size : 0);
+          // uni-app 类型定义缺 size、tempFilePath 标可选，运行时都存在；收敛成明确形状
+          const f = res.tempFiles?.[0] as { tempFilePath: string; size: number } | undefined;
+          done(f?.tempFilePath ?? '', f?.size ?? 0);
         },
         fail: reject
       });
@@ -480,9 +481,11 @@ function chooseAvatarImage(): Promise<{ path: string; size: number }> {
       count: 1,
       sizeType: ['compressed'],
       success: (res) => {
-        const f = res.tempFiles && res.tempFiles[0];
-        const path = (f && f.path) || (res.tempFilePaths && res.tempFilePaths[0]) || '';
-        done(path, (f && f.size) || 0);
+        // tempFiles 运行时恒为数组，类型定义却拍成「对象 | 数组」联合；经 unknown 收敛成数组
+        const files = res.tempFiles ?? [];
+        const f = (files as unknown as Array<{ path: string; size: number }>)[0];
+        const path = f?.path || res.tempFilePaths?.[0] || '';
+        done(path, f?.size ?? 0);
       },
       fail: reject
     });
@@ -491,7 +494,8 @@ function chooseAvatarImage(): Promise<{ path: string; size: number }> {
 
 /** 用户取消选图不算失败：chooseMedia / chooseImage 的 cancel 都走 fail 回调，按 errMsg 识别 */
 function isCancel(err: unknown): boolean {
-  const msg = String((err as { errMsg?: string })?.errMsg || err || '');
+  // 只取字符串或 errMsg：对对象直接 String() 会退化成 '[object Object]'（lint 禁止 base-to-string）
+  const msg = typeof err === 'string' ? err : (err as { errMsg?: string })?.errMsg || '';
   return /cancel/i.test(msg);
 }
 
@@ -642,7 +646,7 @@ function onAppearance() {
 }
 
 function onRecycle() {
-  uni.showToast({ title: '回收站开发中', icon: 'none' });
+  uni.navigateTo({ url: '/pages/recycle/recycle' });
 }
 
 function onAbout() {

@@ -20,7 +20,7 @@
       >
         {{ tagLabel }}
       </text>
-      <text class="time">{{ relTime }}</text>
+      <text class="time">{{ timeText }}</text>
     </view>
   </view>
 </template>
@@ -29,6 +29,7 @@
 import { computed } from 'vue';
 import type { RecordVO } from '@/api';
 import { readTagLabel, readTagColors } from '@/utils/store/tags';
+import { relTime } from '@/utils/relTime';
 
 const props = defineProps<{
   note: RecordVO;
@@ -46,23 +47,8 @@ const excerpt = computed(() => (props.note.content || '').replace(/\s+/g, ' ').t
 const tagLabel = computed(() => readTagLabel(props.note.label));
 const tagColors = computed(() => readTagColors(props.note.label));
 
-/** 相对时间（updatedAt 是 ISO 串，先转时间戳） */
-const relTime = computed(() => {
-  const t = Date.parse(props.note.updatedAt);
-  if (!t) return '';
-  const diff = Date.now() - t;
-  const min = 60 * 1000;
-  const hour = 60 * min;
-  const day = 24 * hour;
-
-  if (diff < min) return '刚刚';
-  if (diff < hour) return `${Math.floor(diff / min)} 分钟前`;
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
-  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
-
-  const d = new Date(t);
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
-});
+/** 相对时间（updatedAt 是 ISO 串） */
+const timeText = computed(() => relTime(props.note.updatedAt));
 </script>
 
 <style lang="scss" scoped>

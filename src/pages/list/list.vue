@@ -158,7 +158,7 @@ function onLongPress(note: RecordVO) {
 async function confirmDelete(note: RecordVO) {
   uni.showModal({
     title: '删除笔记',
-    content: `「${note.title || '无标题'}」将被永久删除，无法恢复。`,
+    content: `「${note.title || '无标题'}」将移入回收站，可在回收站彻底删除。`,
     confirmText: '删除',
     confirmColor: '#EF4444',
     success: async ({ confirm }) => {

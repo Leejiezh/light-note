@@ -18,6 +18,7 @@ export { getToken, isLoggedIn, ensureLogin, logout } from './auth';
 export { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, normalizePageQuery } from './pagination';
 export { getTags } from './modules/tag';
 export { createRecord, getRecord, updateRecord, pageRecords, deleteRecord } from './modules/record';
+export { recyclePage, restoreRecord, purgeRecord } from './modules/recycle';
 export { search } from './modules/search';
 export { getDictItems, getNoteLabels, NOTE_LABEL_TYPE_CODE } from './modules/dict';
 export { presignImage, uploadToMinio, getFileUrl } from './modules/file';

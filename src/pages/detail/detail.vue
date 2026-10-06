@@ -163,7 +163,7 @@ function onPreviewImage(src: string) {
 function onDelete() {
   uni.showModal({
     title: '删除笔记',
-    content: '删除后将永久清除，无法恢复。',
+    content: '删除后将移入回收站，可在回收站彻底删除。',
     confirmText: '删除',
     confirmColor: '#EF4444',
     success: async ({ confirm }) => {
