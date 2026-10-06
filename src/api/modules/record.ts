@@ -14,7 +14,7 @@
 
 import { request } from '../request';
 import { normalizePageQuery } from '../pagination';
-import type { RecordDraft, RecordVO, RecordPageQuery, PageResult } from '../types';
+import type { RecordDraft, RecordVO, RecordPageQuery, LabelCountItem, PageResult } from '../types';
 
 /** 创建记录，返回新记录 id（雪花 Long 按字符串下发） */
 export function createRecord(data: RecordDraft): Promise<string> {
@@ -41,4 +41,9 @@ export function pageRecords(params: RecordPageQuery = {}): Promise<PageResult<Re
   const query: Record<string, string | number> = { ...normalizePageQuery(params) };
   if (params.label) query.label = params.label;
   return request<PageResult<RecordVO>>({ url: '/record/page', data: query });
+}
+
+/** 当前用户各标签笔记数：GET /record/label-counts（data 为裸数组，不分页；label 即 dict key） */
+export function getLabelCounts(): Promise<LabelCountItem[]> {
+  return request<LabelCountItem[]>({ url: '/record/label-counts' });
 }

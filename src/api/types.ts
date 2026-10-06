@@ -105,9 +105,15 @@ export interface SearchHit extends NoteListItem {
 /** 搜索结果（与分页契约同形，total 已在 PageResult 内） */
 export type SearchResult = PageResult<SearchHit>;
 
-/** 标签（名称 + 笔记数） */
-export interface TagItem {
-  name: string;
+/** 标签计数（GET /record/label-counts 的元素；key 即 dict_item.key = 列表页筛选值） */
+export interface LabelCountItem {
+  /** 标签键 = record.label（也是列表页筛选值） */
+  key: string;
+  /** 标签展示名（字典 item_label） */
+  label: string;
+  /** 类型专属属性（含 color.light/dark） */
+  extra?: DictItemExtra;
+  /** 该标签下笔记数（无 = 0） */
   count: number;
 }
 

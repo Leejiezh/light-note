@@ -88,7 +88,7 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 
 | 路径 | 说明 |
 |---|---|
-| `src/pages/` | 六个页面：list / detail / editor / tags / search / mine |
+| `src/pages/` | 五个页面：list / detail / editor / search / mine |
 | `src/components/` | `TodoList.vue`（★ 原生事件）、`NoteCard.vue`、`EmptyState.vue`、`Icon.vue`（★ 图标） |
 | `src/api/` | 请求层（分层）：`client.ts` 传输 / `auth.ts` 鉴权 / `request.ts` 编排（401 重登重放）/ `pagination.ts` 分页契约 / `modules/` 领域接口 / `mock/` stub；`config.ts` 的 `USE_MOCK` 是 mock 开关 |
 | `src/utils/markdown/` | 解析器：rules / inline / block / segment / excerpt；行内格式包裹与图片插入在 `format.ts` |

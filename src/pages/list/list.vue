@@ -1,5 +1,16 @@
 <template>
   <view class="page">
+    <!-- 搜索占位条：搜索能力收敛到首页入口（点击进搜索页） -->
+    <view
+      class="search-bar touch-target"
+      role="button"
+      aria-label="搜索笔记"
+      @tap="goSearch"
+    >
+      <Icon name="search" :size="32" color="var(--text-tertiary)" />
+      <text class="search-placeholder">搜索笔记内容</text>
+    </view>
+
     <!-- 标签筛选条 -->
     <scroll-view class="filter-bar" scroll-x :show-scrollbar="false">
       <view class="filter-inner">
@@ -68,6 +79,7 @@ import { pageRecords, deleteRecord, DEFAULT_PAGE_SIZE } from '@/api';
 import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagDict } from '@/utils/store/tags';
+import { consumePendingFilter } from '@/utils/store/listFilter';
 
 const notes = ref<RecordVO[]>([]);
 const loading = ref(false);       // 首屏 / 下拉刷新
@@ -146,6 +158,10 @@ function goCreate() {
   uni.navigateTo({ url: '/pages/editor/editor' });
 }
 
+function goSearch() {
+  uni.navigateTo({ url: '/pages/search/search' });
+}
+
 function onLongPress(note: RecordVO) {
   uni.showActionSheet({
     itemList: ['删除笔记'],
@@ -155,7 +171,7 @@ function onLongPress(note: RecordVO) {
   });
 }
 
-async function confirmDelete(note: RecordVO) {
+function confirmDelete(note: RecordVO) {
   uni.showModal({
     title: '删除笔记',
     content: `「${note.title || '无标题'}」将移入回收站，可在回收站彻底删除。`,
@@ -174,8 +190,12 @@ async function confirmDelete(note: RecordVO) {
   });
 }
 
-// 每次显示都刷新（从编辑器返回后能看到新笔记）
-onShow(() => load());
+// 每次显示都刷新（从编辑器返回后能看到新笔记）；同时消费「我的」页登记过来的标签筛选
+onShow(() => {
+  const label = consumePendingFilter();
+  if (label !== undefined) activeTag.value = label;
+  load();
+});
 
 onPullDownRefresh(async () => {
   await load();
@@ -190,6 +210,24 @@ onReachBottom(loadMore);
 .page {
   min-height: 100vh;
   padding-bottom: 160rpx;
+}
+
+/* 搜索占位条（点击进搜索页，视觉对齐 search.vue 的 searchbar） */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin: $space-3 $space-4 0;
+  padding: 0 $space-4;
+  height: 88rpx;
+  background: var(--bg-surface);
+  border-radius: $radius-full;
+  box-shadow: var(--shadow-sm);
+}
+
+.search-placeholder {
+  font-size: $text-sm;
+  color: var(--text-disabled);
 }
 
 /* 筛选条 */

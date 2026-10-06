@@ -222,21 +222,32 @@
       </view>
     </view>
 
-    <!-- ═══════════ 统计 ═══════════ -->
-    <view class="stats">
-      <view class="stat">
-        <text class="stat-num">{{ stats.total }}</text>
-        <text class="stat-label">全部笔记</text>
+    <!-- ═══════════ 统计：横向滚动的每标签文章数 ═══════════ -->
+    <scroll-view class="stats" scroll-x :show-scrollbar="false">
+      <view class="stats-inner">
+        <view
+          class="chip"
+          role="button"
+          :aria-label="`全部笔记，共 ${stats.total} 条`"
+          @tap="onChip('all')"
+        >
+          <text class="chip-label">全部</text>
+          <text class="chip-count">{{ stats.total }}</text>
+        </view>
+        <view
+          v-for="t in stats.tagList"
+          :key="t.key"
+          class="chip"
+          role="button"
+          :aria-label="`标签 ${t.label}，${t.count} 条笔记`"
+          @tap="onChip(t.key)"
+        >
+          <view class="dot" :style="{ background: chipColor(t) }" />
+          <text class="chip-label">{{ t.label }}</text>
+          <text class="chip-count">{{ t.count }}</text>
+        </view>
       </view>
-      <view class="stat">
-        <text class="stat-num">{{ stats.done }}</text>
-        <text class="stat-label">已完成待办</text>
-      </view>
-      <view class="stat">
-        <text class="stat-num">{{ stats.tags }}</text>
-        <text class="stat-label">标签数</text>
-      </view>
-    </view>
+    </scroll-view>
 
     <!-- ═══════════ 设置 ═══════════ -->
     <view class="group">
@@ -301,7 +312,9 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import Icon from '@/components/Icon.vue';
-import { pageRecords, getTags, isLoggedIn, ensureLogin, logout, presignImage, uploadToMinio, getProfile, updateProfile } from '@/api';
+import { pageRecords, getLabelCounts, isLoggedIn, ensureLogin, logout, presignImage, uploadToMinio, getProfile, updateProfile } from '@/api';
+import type { LabelCountItem } from '@/api';
+import { requestFilter } from '@/utils/store/listFilter';
 import {
   readProfile,
   writeProfile,
@@ -608,23 +621,37 @@ async function save() {
   }
 }
 
-// ---------- 统计（沿用原有逻辑） ----------
-const stats = ref({ total: 0, done: 0, tags: 0 });
+// ---------- 统计：全部文章数 + 每标签计数（点击跳首页按标签筛选） ----------
+const stats = ref({ total: 0, tagList: [] as LabelCountItem[] });
 const theme = ref<ThemeMode>(getTheme());
 const themeLabel = computed(() => (theme.value === 'dark' ? '深色' : '浅色'));
 
+// 标签展示名与颜色由接口直接返回（LabelCountVO{key,label,extra,count}），不再依赖本地字典
+/** chip 圆点色：按当前主题从 extra.color 取，缺省回落品牌令牌 */
+function chipColor(it: LabelCountItem): string {
+  const color = it.extra?.color;
+  const mode = getTheme();
+  const picked = (mode === 'dark' ? color?.dark : color?.light) || color?.light || color?.dark;
+  return picked || 'var(--brand-500)';
+}
+
 async function load() {
-  try {
-    const [recordsRes, tagsRes] = await Promise.all([pageRecords({}), getTags()]);
-    stats.value = {
-      // 分页响应自带总条数，不要用当前页的 list.length
-      total: recordsRes.total ?? (recordsRes.list || []).length,
-      done: 0, // 骨架阶段：真实实现需从各笔记 checks 汇总
-      tags: (tagsRes.list || []).length
-    };
-  } catch (e) {
-    // 忽略
+  // total 与标签计数分开加载：任一失败不连累另一个（曾因计数接口 404 把整页统计打空）
+  const [recordsRes, countsRes] = await Promise.allSettled([pageRecords({}), getLabelCounts()]);
+  if (recordsRes.status === 'fulfilled') {
+    // 分页响应自带总条数，不要用当前页的 list.length
+    stats.value.total = recordsRes.value.total ?? (recordsRes.value.list || []).length;
   }
+  if (countsRes.status === 'fulfilled') {
+    // 后端已按字典 sortOrder 排序，直接收下
+    stats.value.tagList = countsRes.value || [];
+  }
+}
+
+/** 点标签 chip：switchTab 不能带 query，先登记要应用的筛选再切回首页 */
+function onChip(key: string) {
+  requestFilter(key);
+  uni.switchTab({ url: '/pages/list/list' });
 }
 
 function onAppearance() {
@@ -1017,32 +1044,49 @@ onShow(() => {
 }
 
 /* ═══════════ 统计与设置（沿用既有语言） ═══════════ */
+/* 标签计数：横向滚动 chips（与首页筛选条同视觉语言） */
 .stats {
-  display: flex;
   background: var(--bg-surface);
   border-radius: $radius-lg;
-  padding: $space-4 0;
+  padding: $space-3 0;
   margin-bottom: $space-5;
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
 }
 
-.stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.stats-inner {
+  display: inline-flex;
+  gap: $space-2;
+  padding: 0 $space-4;
+}
+
+.chip {
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: 6rpx;
+  gap: 8rpx;
+  padding: 12rpx $space-3;
+  min-height: 64rpx;
+  border-radius: $radius-full;
+  background: var(--bg-muted);
+  transition: background-color $duration-fast ease;
 }
 
-.stat-num {
-  font-size: $text-2xl;
-  font-weight: $font-bold;
-  color: $brand-500;
+.chip-label {
+  font-size: $text-sm;
+  color: var(--text-primary);
 }
 
-.stat-label {
+.chip-count {
   font-size: $text-xs;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
+}
+
+.dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: $radius-full;
+  flex: none;
 }
 
 .group {

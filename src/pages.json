@@ -21,12 +21,6 @@
       }
     },
     {
-      "path": "pages/tags/tags",
-      "style": {
-        "navigationBarTitleText": "标签"
-      }
-    },
-    {
       "path": "pages/search/search",
       "style": {
         "navigationBarTitleText": "搜索"
@@ -57,18 +51,6 @@
         "text": "笔记",
         "iconPath": "static/tabbar/note.png",
         "selectedIconPath": "static/tabbar/note-active.png"
-      },
-      {
-        "pagePath": "pages/tags/tags",
-        "text": "标签",
-        "iconPath": "static/tabbar/tag.png",
-        "selectedIconPath": "static/tabbar/tag-active.png"
-      },
-      {
-        "pagePath": "pages/search/search",
-        "text": "搜索",
-        "iconPath": "static/tabbar/search.png",
-        "selectedIconPath": "static/tabbar/search-active.png"
       },
       {
         "pagePath": "pages/mine/mine",

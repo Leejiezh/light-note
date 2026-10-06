@@ -100,7 +100,6 @@ light-note/
 │   │   ├── list/list.vue        笔记列表（含骨架屏、标签筛选、FAB）
 │   │   ├── detail/detail.vue    ★ 详情页（待办分段渲染）
 │   │   ├── editor/editor.vue    编辑器（工具栏、光标插入）
-│   │   ├── tags/tags.vue        标签页
 │   │   ├── search/search.vue    搜索（服务端搜索 + 高亮渲染）
 │   │   └── mine/mine.vue        我的
 │   ├── components/

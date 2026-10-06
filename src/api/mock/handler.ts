@@ -64,15 +64,6 @@ async function route(options: RequestOptions): Promise<unknown> {
     return paginate(all, data as PageQuery);
   }
 
-  // 标签
-  if (path === '/tags' && method === 'GET') {
-    const map: Record<string, number> = {};
-    DB.filter((n) => !n.deletedAt).forEach((n) => {
-      map[n.tag] = (map[n.tag] || 0) + 1;
-    });
-    return { list: Object.entries(map).map(([name, count]) => ({ name, count })) };
-  }
-
   // 字典（GET /dict/{typeCode}）★ 与真实契约对齐：data 是裸数组，不分页
   const dictMatch = path.match(/^\/dict\/([^/]+)$/);
   if (dictMatch && method === 'GET') {
