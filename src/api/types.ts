@@ -1,7 +1,7 @@
 // ============================================================
 // 轻记 · API 层的领域类型（DTO）
 //
-// 分页的请求 / 响应外壳对应 docs/api/pagination.md（后端统一契约）；
+// 分页的请求 / 响应外壳对应 docs/api/api-contract.md「通用约定」（后端统一契约）；
 // 业务 VO 字段（RecordVO / ReportVO）尚未冻结，以后端为准。
 // 后端字段变化时，只需要改这一个文件。
 // ============================================================
@@ -21,7 +21,7 @@ export interface RequestOptions {
 }
 
 /**
- * 后端统一响应外壳 `R<T>`（docs/api/pagination.md §1）：字段固定 code / msg / data。
+ * 后端统一响应外壳 `R<T>`（docs/api/api-contract.md「通用约定」）：字段固定 code / msg / data。
  * 成功失败一律看 body.code，不看 HTTP 状态码。
  * message 只是少数旧接口的别名字段，取不到 msg 时兜底。
  */
@@ -64,7 +64,7 @@ export interface NoteListItem {
   updatedAt: number;
 }
 
-// ---------- 分页（后端统一契约，docs/api/pagination.md §2 / §3） ----------
+// ---------- 分页（后端统一契约，docs/api/api-contract.md「通用约定」） ----------
 
 /**
  * 分页请求参数：GET 查询串传参（不是 JSON body），字段名与响应同名。

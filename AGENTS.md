@@ -70,7 +70,7 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 - 给 Icon 上色用 `color` prop（建议传 CSS 变量）或父级文字色继承；**不要用页面 class 给 Icon 改颜色**——小程序自定义组件样式隔离，类选择器穿不进去（H5 正常、小程序失效，别只看 H5）
 - tabBar 图标**必须是 PNG**（`static/tabbar/`，81×81），字体图标 / SVG 都不行；新增图标先查 `RUNNING.md` §八⑧ 的流程
 
-### 9. 分页统一走后端契约（`docs/api/pagination.md`）
+### 9. 分页统一走后端契约（`docs/api/api-contract.md`「通用约定」）
 
 - 请求只有 `pageNum` / `pageSize`（**GET 查询串，不是 JSON body**），默认 1 / 10，上限 100；响应 `data` 恒为 `{ list, total, pageNum, pageSize, hasNext }`
 - 上拉加载是 `if (hasNext) pageNum++` 再请求，**不要自己算总页数，也不要引入 cursor / offset**
