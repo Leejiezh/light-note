@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'theme-dark': theme === 'dark' }">
     <!-- 搜索框 -->
     <view class="searchbar">
       <Icon name="search" :size="34" color="var(--text-tertiary)" />
@@ -31,9 +31,9 @@
       <text class="idle-tip">输入关键词，在标题与正文中搜索</text>
       <view class="note">
         <text class="note-title">搜索说明</text>
-        <text class="note-item">· 中文搜索走服务端（MySQL 全文索引）</text>
-        <text class="note-item">· 输入至少 2 个字效果最佳</text>
-        <text class="note-item">· 高亮由服务端返回，前端只渲染</text>
+        <text class="note-item">· 在标题与正文中搜索，单个字也能搜</text>
+        <text class="note-item">· 中文英文均可，不区分大小写</text>
+        <text class="note-item">· 高亮由服务端生成，前端只渲染</text>
       </view>
     </view>
 
@@ -77,12 +77,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onLoad, onReachBottom } from '@dcloudio/uni-app';
+import { onLoad, onReachBottom, onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/EmptyState.vue';
 import Icon from '@/components/Icon.vue';
 import { search, DEFAULT_PAGE_SIZE } from '@/api';
 import type { SearchHit } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
+import { useTheme, applyChrome } from '@/utils/store/theme';
+
+const theme = useTheme();
 
 const keyword = ref('');
 const results = ref<SearchHit[]>([]);
@@ -98,6 +101,11 @@ const hasNext = ref(false);
 
 onLoad(() => {
   autoFocus.value = true;
+});
+
+// 进页/回页设置原生导航栏与窗口背景色
+onShow(() => {
+  applyChrome(theme.value);
 });
 
 /** 防抖：输入时自动搜索 */
@@ -168,6 +176,8 @@ onReachBottom(loadMore);
 <style lang="scss" scoped>
 .page {
   min-height: 100vh;
+  /* 页面元素背景不随根节点 theme-dark 变，根 view 自涂背景遮住 */
+  background-color: var(--bg-page);
   padding: $space-4;
 }
 

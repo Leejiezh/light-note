@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'theme-dark': theme === 'dark' }">
     <!-- ═══════════ 未登录：登录卡 ═══════════ -->
     <view v-if="!logged && !editing" class="card login" key="login-view">
       <view class="login-avatar" aria-hidden="true">
@@ -328,8 +328,7 @@ import {
   EMAIL_MAX
 } from '@/utils/store/profile';
 import type { Profile, ProfileDraft, AvatarKey, AvatarPreset } from '@/utils/store/profile';
-import { getTheme, setTheme } from '@/utils/store/theme';
-import type { ThemeMode } from '@/utils/store/theme';
+import { getTheme, setTheme, useTheme, applyChrome } from '@/utils/store/theme';
 import { errorMessage } from '@/utils/errorMessage';
 
 // ---------- 资料（浏览态） ----------
@@ -623,7 +622,7 @@ async function save() {
 
 // ---------- 统计：全部文章数 + 每标签计数（点击跳首页按标签筛选） ----------
 const stats = ref({ total: 0, tagList: [] as LabelCountItem[] });
-const theme = ref<ThemeMode>(getTheme());
+const theme = useTheme();
 const themeLabel = computed(() => (theme.value === 'dark' ? '深色' : '浅色'));
 
 // 标签展示名与颜色由接口直接返回（LabelCountVO{key,label,extra,count}），不再依赖本地字典
@@ -661,11 +660,12 @@ function onAppearance() {
     content: `切换到${next === 'dark' ? '深色' : '浅色'}模式？`,
     success: ({ confirm }) => {
       if (!confirm) return;
-      // 统一走主题 store：写存储 + 广播给订阅者（标签按主题取色要用到）
+      // 统一走主题 store：写存储 + 广播给订阅者（各页根节点 theme-dark class、标签取色都靠它）
       theme.value = setTheme(next);
-      // 骨架阶段仅记录设置；小程序端需配合页面根节点 class 生效
+      // 原生导航栏/窗口背景/tabBar 立即切换；其余页面回页时 onShow 会再同步一次
+      applyChrome(next);
       uni.showToast({
-        title: next === 'dark' ? '已切换深色（需重启生效）' : '已切换浅色',
+        title: next === 'dark' ? '已切换深色' : '已切换浅色',
         icon: 'none'
       });
     }
@@ -685,6 +685,7 @@ function onAbout() {
 }
 
 onShow(() => {
+  applyChrome(theme.value);
   load();
   // 回到页面时重读一次，防止其他入口改过存储（目前只有本页写，但读一次更稳）
   if (!editing.value) profile.value = readProfile();
@@ -698,6 +699,8 @@ onShow(() => {
 <style lang="scss" scoped>
 .page {
   min-height: 100vh;
+  /* 页面元素背景不随根节点 theme-dark 变，根 view 自涂背景遮住 */
+  background-color: var(--bg-page);
   padding: $space-4 $space-4 $space-8;
 }
 

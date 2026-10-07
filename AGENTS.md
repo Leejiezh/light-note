@@ -56,6 +56,8 @@ npm run lint            # ESLint（flat config，`eslint.config.mjs`；含类型
 
 颜色/间距/字号取自 `src/styles/tokens.scss` 与 `global.scss` 的 CSS 变量，**不要硬编码颜色值**（项目带暗色模式）。`vite.config.js` 会把这些令牌注入每个 SCSS 文件。
 
+暗色模式机制：各页面根 `<view class="page">` 绑 `:class="{ 'theme-dark': ... }"`（`useTheme()`），`global.scss` 的 `.theme-dark` 块覆写 CSS 变量并沿继承链进入自定义组件（小程序样式隔离不切断 CSS 变量继承）；原生导航栏/窗口/tabBar 色由 `theme.ts` 的 `applyChrome()` 在各页 `onShow` 下发。**唯一允许硬编码色值的地方是 `theme.ts` 的 `chromeFor()`**——原生 API（`setNavigationBarColor` 等）只吃真实色值，CSS 变量喂不进去，色值已在注释标明与 global.scss 令牌对应；页面里不得再散落硬编码。
+
 ### 6. 路由在 `src/pages.json`
 
 不是 Vue Router。新增页面要同时注册到 `pages.json`，tabBar 也在那里配。

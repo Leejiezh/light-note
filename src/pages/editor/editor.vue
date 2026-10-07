@@ -1,5 +1,5 @@
 <template>
-  <view class="page" :style="pageStyle">
+  <view class="page" :style="pageStyle" :class="{ 'theme-dark': theme === 'dark' }">
     <view class="content">
       <!-- ① 文字卡：标题 + 正文 -->
       <view class="card text-card">
@@ -131,12 +131,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onUnload, onShow } from '@dcloudio/uni-app';
 import Icon from '@/components/Icon.vue';
 import { createRecord, getRecord, updateRecord, presignImage, uploadToMinio } from '@/api';
 import type { RecordDraft, RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagDict, readTagColor } from '@/utils/store/tags';
+import { useTheme, applyChrome } from '@/utils/store/theme';
+
+const theme = useTheme();
 
 /** 已选图片：key 是落库用的 objectKey，preview 是本地临时路径（新图）或访问 URL（编辑加载） */
 interface PickedImage {
@@ -220,6 +223,11 @@ onLoad(async (query?: Record<string, string | undefined>) => {
 onUnload(() => {
   if (kbHandler && uni.offKeyboardHeightChange) uni.offKeyboardHeightChange(kbHandler);
   kbHandler = null;
+});
+
+// 进页/回页设置原生导航栏与窗口背景色（editor 无 onShow 原有逻辑，仅此一处）
+onShow(() => {
+  applyChrome(theme.value);
 });
 
 /** 聚焦：focus 事件的 detail 里带键盘高度，作为 onKeyboardHeightChange 的兜底 */

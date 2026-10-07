@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'theme-dark': theme === 'dark' }">
     <view v-if="loading" class="loading">加载中…</view>
 
     <template v-else-if="record">
@@ -86,7 +86,9 @@ import { getRecord, deleteRecord } from '@/api';
 import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagLabel, readTagColors } from '@/utils/store/tags';
+import { useTheme, applyChrome } from '@/utils/store/theme';
 
+const theme = useTheme();
 const NOTE_ID = ref('');
 const record = ref<RecordVO | null>(null);
 const segments = ref<Segment[]>([]);
@@ -115,6 +117,7 @@ onLoad((query?: Record<string, string | undefined>) => {
  * 不刷新的话详情页会一直显示编辑前的旧内容。
  */
 onShow(() => {
+  applyChrome(theme.value);
   if (NOTE_ID.value) load();
 });
 
@@ -191,6 +194,8 @@ function formatTime(iso: string) {
 <style lang="scss" scoped>
 .page {
   min-height: 100vh;
+  /* 页面元素背景不随根节点 theme-dark 变，根 view 自涂背景遮住 */
+  background-color: var(--bg-page);
   padding: $space-4;
   padding-bottom: $space-10;
 }

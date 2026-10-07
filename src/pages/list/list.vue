@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'theme-dark': theme === 'dark' }">
     <!-- 搜索占位条：搜索能力收敛到首页入口（点击进搜索页） -->
     <view
       class="search-bar touch-target"
@@ -80,7 +80,9 @@ import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
 import { ensureTagDict, readTagDict } from '@/utils/store/tags';
 import { consumePendingFilter } from '@/utils/store/listFilter';
+import { useTheme, applyChrome } from '@/utils/store/theme';
 
+const theme = useTheme();
 const notes = ref<RecordVO[]>([]);
 const loading = ref(false);       // 首屏 / 下拉刷新
 const loadingMore = ref(false);   // 上拉加载下一页
@@ -192,6 +194,7 @@ function confirmDelete(note: RecordVO) {
 
 // 每次显示都刷新（从编辑器返回后能看到新笔记）；同时消费「我的」页登记过来的标签筛选
 onShow(() => {
+  applyChrome(theme.value);
   const label = consumePendingFilter();
   if (label !== undefined) activeTag.value = label;
   load();
@@ -209,6 +212,8 @@ onReachBottom(loadMore);
 <style lang="scss" scoped>
 .page {
   min-height: 100vh;
+  /* 页面元素背景不随根节点 theme-dark 变，根 view 自涂背景遮住（editor 页先例） */
+  background-color: var(--bg-page);
   padding-bottom: 160rpx;
 }
 

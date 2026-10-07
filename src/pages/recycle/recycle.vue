@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :class="{ 'theme-dark': theme === 'dark' }">
     <!-- 首屏骨架（沿用列表页语言） -->
     <view v-if="loading && !notes.length" class="skeleton-wrap">
       <view v-for="i in 3" :key="i" class="skeleton-card">
@@ -38,7 +38,9 @@ import RecycleCard from '@/components/RecycleCard.vue';
 import { recyclePage, restoreRecord, purgeRecord, DEFAULT_PAGE_SIZE } from '@/api';
 import type { RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
+import { useTheme, applyChrome } from '@/utils/store/theme';
 
+const theme = useTheme();
 const notes = ref<RecordVO[]>([]);
 const loading = ref(false);       // 首屏 / 下拉刷新
 const loadingMore = ref(false);   // 上拉加载下一页
@@ -123,7 +125,10 @@ function onPurge(note: RecordVO) {
   });
 }
 
-onShow(() => load());
+onShow(() => {
+  applyChrome(theme.value);
+  load();
+});
 
 onPullDownRefresh(async () => {
   await load();
@@ -136,6 +141,8 @@ onReachBottom(loadMore);
 <style lang="scss" scoped>
 .page {
   min-height: 100vh;
+  /* 页面元素背景不随根节点 theme-dark 变，根 view 自涂背景遮住 */
+  background-color: var(--bg-page);
   padding-bottom: $space-8;
 }
 
