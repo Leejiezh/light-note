@@ -24,7 +24,7 @@ export { presignImage, uploadToMinio, getFileUrl } from './modules/file';
 export { getProfile, updateProfile } from './modules/user';
 
 export type {
-  Note, NoteListItem,
+  Note,
   PageQuery, PageResult, SearchResult, SearchHit, SearchQuery,
   LabelCountItem, DictItem, DictItemExtra, LoginResult,
   UserProfile, UserProfileDraft, PresignResp,

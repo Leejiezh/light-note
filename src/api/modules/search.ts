@@ -10,6 +10,6 @@ import type { SearchResult, SearchQuery } from '../types';
 export function search(p: SearchQuery = {}): Promise<SearchResult> {
   const query: Record<string, string | number> = { ...normalizePageQuery(p) };
   if (p.q) query.q = p.q;
-  if (p.tag) query.tag = p.tag;
+  if (p.label) query.label = p.label;
   return request<SearchResult>({ url: '/search', data: query });
 }

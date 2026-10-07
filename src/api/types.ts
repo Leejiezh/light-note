@@ -53,17 +53,6 @@ export interface Note {
   deletedAt?: number;
 }
 
-/** 笔记列表项（列表接口返回，不含 body，只有 excerpt） */
-export interface NoteListItem {
-  id: string;
-  title: string;
-  excerpt: string;
-  tag: string;
-  pinned: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
 // ---------- 分页（后端统一契约，docs/api/api-contract.md「通用约定」） ----------
 
 /**
@@ -94,8 +83,23 @@ export interface PageResult<V> {
   hasNext: boolean;
 }
 
-/** 搜索命中（比列表项多一份服务端高亮） */
-export interface SearchHit extends NoteListItem {
+/** 搜索结果项（对齐后端 SearchVO：不含 content / images，比 RecordVO 多摘要 + 高亮） */
+export interface SearchHit {
+  /** 雪花 Long 主键，后端按字符串序列化（JSON 数字会超出 JS 精度） */
+  id: string;
+  /** 标题（空串 = 无标题） */
+  title: string;
+  /** 标签 dict key（未分类为 null / 空） */
+  label: string;
+  /** 记录日期 yyyy-MM-dd */
+  recordDate: string;
+  /** 创建时间 ISO 串 */
+  createdAt: string;
+  /** 更新时间 ISO 串 */
+  updatedAt: string;
+  /** 围绕首个命中的纯文本摘要（可能带 … 截断），无高亮时的兜底 */
+  excerpt: string;
+  /** 服务端生成的高亮 HTML（已转义，只含 <span class="hl">；前端 rich-text 只渲染） */
   highlights: {
     title: string;
     excerpt: string;
@@ -189,12 +193,12 @@ export interface PresignResp {
 
 // ---------- 查询 / 写入参数 ----------
 
-/** 搜索查询参数（分页 + 关键词 / 标签） */
+/** 搜索查询参数（分页 + 关键词 / 标签过滤） */
 export interface SearchQuery extends PageQuery {
-  /** 关键词 */
+  /** 关键词（标题/正文子串匹配，不区分大小写） */
   q?: string;
-  /** 标签过滤 */
-  tag?: string;
+  /** 标签过滤（record.label = dict_item.item_key） */
+  label?: string;
 }
 
 // ---------- 记录（后端 Record 契约；列表 / 详情 / 编辑器统一使用） ----------

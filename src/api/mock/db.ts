@@ -4,8 +4,8 @@
 // 数据严格遵循 data-api-contract.md §1 的 Note Schema
 // ============================================================
 
-import { countTodos, extractExcerpt, normalizeChecks } from '@/utils/markdown';
-import type { Note, NoteListItem, DictItem } from '../types';
+import { countTodos, normalizeChecks } from '@/utils/markdown';
+import type { Note, DictItem } from '../types';
 
 /** 内存态的笔记（比对外多一个软删除标记） */
 export type StoredNote = Note & { deletedAt?: number };
@@ -144,19 +144,6 @@ export function hydrate(n: StoredNote): Note {
   return { ...n, checks };
 }
 
-/** 列表项裁掉 body，只留 excerpt（对应契约：列表不返回 body） */
-export function toListItem(n: StoredNote): NoteListItem {
-  return {
-    id: n.id,
-    title: n.title,
-    excerpt: extractExcerpt(n.body, 60),
-    tag: n.tag,
-    pinned: !!n.pinned,
-    createdAt: n.createdAt,
-    updatedAt: n.updatedAt
-  };
-}
-
 /** HTML 转义（高亮前先转义，防 XSS） */
 function escapeHtml(s: string): string {
   return String(s)
@@ -179,6 +166,31 @@ export function highlight(text: string, q: string): string {
     new RegExp(escapeHtml(safeQ), 'gi'),
     (m) => `<span class="hl">${m}</span>`
   );
+}
+
+/**
+ * 围绕首个命中的纯文本摘要（对齐后端 SearchHighlightUtil.excerpt）：
+ * 命中在正文靠后时也能看到上下文，而不是固定取开头；正文未命中退化为开头窗口。
+ */
+export function snippet(content: string, q: string, len = 60, lead = 20): string {
+  const text = String(content || '');
+  if (!text) return '';
+  const kw = String(q || '');
+  const idx = text.toLowerCase().indexOf(kw.toLowerCase());
+  if (idx < 0) return truncateSnippet(text, 0, len);
+  const start = Math.max(0, idx - lead);
+  const end = Math.max(idx + kw.length, start + len);
+  return truncateSnippet(text, start, end);
+}
+
+function truncateSnippet(text: string, start: number, end: number): string {
+  const from = Math.min(start, text.length);
+  const to = Math.min(Math.max(end, from), text.length);
+  let out = '';
+  if (from > 0) out += '…';
+  out += text.slice(from, to);
+  if (to < text.length) out += '…';
+  return out;
 }
 
 /** 开发调试用：重置数据 */

@@ -5,8 +5,7 @@
 // ★ 路由表必须与 modules/ 里声明的真实接口一一对应（改接口两边同步）。
 // ============================================================
 
-import { extractExcerpt } from '@/utils/markdown';
-import { DB, DICT, delay, toListItem, highlight } from './db';
+import { DB, DICT, delay, highlight, snippet } from './db';
 import { normalizePageQuery } from '../pagination';
 import type { RequestOptions, PageQuery, PageResult } from '../types';
 
@@ -47,20 +46,30 @@ async function route(options: RequestOptions): Promise<unknown> {
     return { token: `mock-token-${Date.now().toString(36)}` };
   }
 
-  // 搜索（统一分页契约）
+  // 搜索（统一分页契约；对齐后端 GET /search：q 标题/正文子串匹配 + label 过滤，返回 SearchVO 形态）
   if (path === '/search' && method === 'GET') {
     const q = String(data?.q || '').trim();
-    if (!q) return paginate([], data as PageQuery);
+    const label = String(data?.label || '');
     const all = DB
       .filter((n) => !n.deletedAt)
-      .filter((n) => n.title.includes(q) || n.body.includes(q))
-      .map((n) => ({
-        ...toListItem(n),
-        highlights: {
-          title: highlight(n.title, q),
-          excerpt: highlight(extractExcerpt(n.body, 60), q)
-        }
-      }));
+      .filter((n) => (label ? n.tag === label : true))
+      .filter((n) => (q ? n.title.includes(q) || n.body.includes(q) : true))
+      .map((n) => {
+        const excerpt = snippet(n.body, q);
+        return {
+          id: n.id,
+          title: n.title,
+          label: n.tag ?? '',
+          recordDate: n.recordDate ?? '',
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+          excerpt,
+          highlights: {
+            title: highlight(n.title, q),
+            excerpt: highlight(excerpt, q)
+          }
+        };
+      });
     return paginate(all, data as PageQuery);
   }
 
