@@ -136,7 +136,7 @@ import Icon from '@/components/Icon.vue';
 import { createRecord, getRecord, updateRecord, presignImage, uploadToMinio } from '@/api';
 import type { RecordDraft, RecordVO } from '@/api';
 import { errorMessage } from '@/utils/errorMessage';
-import { ensureTagDict, readTagDict, readTagColor } from '@/utils/store/tags';
+import { ensureTagDict, readTagDict, readTagColor, findTag } from '@/utils/store/tags';
 import { useTheme, applyChrome } from '@/utils/store/theme';
 
 const theme = useTheme();
@@ -215,7 +215,10 @@ onLoad(async (query?: Record<string, string | undefined>) => {
       uni.showToast({ title: errorMessage(e, '加载失败'), icon: 'none' });
     }
   } else {
-    // 新建：直接进编辑态
+    // 新建：默认标签来自来源页（列表页按标签筛选时点新建会带 label）；
+    // 校验在字典里才用，否则回落「未分类」（防 H5 手工改 URL 注入脏标签）
+    const preset = query?.label;
+    activeTag.value = preset && findTag(preset) ? preset : 'all';
     wantFocus.value = true;
   }
 });

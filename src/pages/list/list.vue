@@ -157,7 +157,9 @@ function goDetail(id: string) {
 }
 
 function goCreate() {
-  uni.navigateTo({ url: '/pages/editor/editor' });
+  // 按标签筛选时新建：把当前标签带给编辑器默认选中；「全部」不带参，编辑器默认未分类
+  const q = activeTag.value === 'all' ? '' : `?label=${encodeURIComponent(activeTag.value)}`;
+  uni.navigateTo({ url: `/pages/editor/editor${q}` });
 }
 
 function goSearch() {
