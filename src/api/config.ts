@@ -8,7 +8,6 @@
 export const USE_MOCK = false;
 
 /** 真实后端地址（局域网 IP，方便手机浏览器/小程序 H5 真机访问；后端需监听 0.0.0.0 并放开 CORS） */
-export const BASE_URL = 'http://192.168.1.17:8080/api';
-
+export const BASE_URL = 'http://127.0.0.1:8080/api';
 /** 请求超时（毫秒） */
 export const TIMEOUT = 15000;
